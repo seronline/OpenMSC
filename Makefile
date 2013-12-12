@@ -16,7 +16,7 @@ clean:
 	$(RM) $(OBJS) openmsc
 
 install:
-	@echo RTFM! Just run the binary from here douce: ./openmsc -h
+	@echo nothing to do
 	
 all:
 	make clean
