@@ -35,8 +35,7 @@
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/regex.hpp>
 #include <iomanip>
-#include "typedef.hh"
-#include "msc.hh"
+#include "readMsc.hh"
 
 using namespace std;
 
@@ -118,6 +117,22 @@ int ReadMsc::ReadMscConfigFile ()
 	return(EXIT_SUCCESS);
 }
 
+int ReadMsc::GetMscLength(USE_CASE_ID useCaseId)
+{
+	USE_CASE_DESCRIPTION_MAP_IT it;
+	it = useCaseDescrMap.find(useCaseId);
+
+	if (it == useCaseDescrMap.end())
+		return 0;
+
+	return (*it).second.size();
+}
+
+int ReadMsc::GetNumOfUseCases()
+{
+	return useCaseDescrMap.size();
+}
+
 bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		NETWORK_ELEMENT src,
 		NETWORK_ELEMENT dst,
@@ -138,6 +153,9 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 	CheckNetworkElementIdentifier(dst);
 	CheckProtocolTypeIdentifier(protType);
 	CheckPrimitiveNameIdentifier(primName);
+
+	for (unsigned int i = 0; i < commDescrStruct.informationElements.size(); i++)
+		CheckInformationElementIdentifier(commDescrStruct.informationElements.at(i));
 
 	// New use-case
 	if (useCaseDescrMap.find(uc) == useCaseDescrMap.end())
@@ -169,12 +187,12 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 }
 
 bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
-		NETWORK_ELEMENT *src,
-		NETWORK_ELEMENT *dst,
-		PROTOCOL_TYPE *protocolType,
-		PRIMITIVE_NAME *primitiveName,
-		INFORMATION_ELEMENT_VECTOR *informationElements,
-		LATENCY_DESCRIPTION_STRUCT *latencyDescription)
+		NETWORK_ELEMENT *src_,
+		NETWORK_ELEMENT *dst_,
+		PROTOCOL_TYPE *protocolType_,
+		PRIMITIVE_NAME *primitiveName_,
+		INFORMATION_ELEMENT_VECTOR *informationElements_,
+		LATENCY_DESCRIPTION_STRUCT *latencyDescription_)
 {
 	MSC_LINE_VECTOR lineTmp, lineTmp2, lineTmp3, lineTmp4, lineTmp5, lineTmp6;
 
@@ -188,9 +206,9 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 		boost::split (lineTmp2, lineTmp.at(0), boost::is_any_of("\t"));
 
 		if (lineTmp2.size() > 0)
-			*src = lineTmp2.at(1);
+			*src_ = lineTmp2.at(1);
 		else
-			*src = lineTmp.at(0);
+			*src_ = lineTmp.at(0);
 	}
 	else
 		return false;
@@ -199,7 +217,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 	boost::split (lineTmp, line.at(1), boost::is_any_of(" "));
 
 	if (lineTmp.size() > 0)
-		*dst = lineTmp.at(1);
+		*dst_ = lineTmp.at(1);
 	else
 		return false;
 
@@ -211,11 +229,12 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 	{
 		// Protocol type
 		boost::split(lineTmp2, lineTmp.at(1), boost::is_any_of("-"));
-		*protocolType = lineTmp2.at(0);
+		*protocolType_ = lineTmp2.at(0);
 		// Primitive name
 		boost::split(lineTmp3, lineTmp2.at(1), boost::is_any_of("("));
+
 		if (lineTmp3.size() > 1)
-			*primitiveName = lineTmp3.at(0);
+			*primitiveName_ = lineTmp3.at(0);
 		else
 		{
 			cout << "ERROR: No information elements given in openmsc.msc file: " << lineTmp.at(1) << endl;
@@ -229,7 +248,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 		boost::split(lineTmp5, lineTmp4.at(0), boost::is_any_of(","));
 
 		for (unsigned int i = 0; i < lineTmp5.size(); i++)
-			(*informationElements).insert((*informationElements).end(), lineTmp5.at(i));
+			(*informationElements_).insert((*informationElements_).end(), lineTmp5.at(i));
 
 		lineTmp2.clear();
 		lineTmp3.clear();
@@ -264,7 +283,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 			{
 				if (!CheckDistributionDataForConsistency(EXPONENTIAL, lineTmp2))
 					return false;
-				(*latencyDescription).latencyDistribution = EXPONENTIAL;
+				(*latencyDescription_).latencyDistribution = EXPONENTIAL;
 				lineTmp5.clear();
 				lineTmp6.clear();
 				boost::algorithm::split_regex(lineTmp5, lineTmp2.at(1), boost::regex ("latencyLambda"));
@@ -273,7 +292,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 					boost::split(lineTmp6, lineTmp5.at(1), boost::is_any_of("{"));
 					lineTmp5.clear();
 					boost::split(lineTmp5, lineTmp6.at(1), boost::is_any_of("}"));
-					(*latencyDescription).exponentialLambda = atof(lineTmp5.at(0).c_str());
+					(*latencyDescription_).exponentialLambda = atof(lineTmp5.at(0).c_str());
 
 				}
 				else
@@ -287,20 +306,20 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 				if (!CheckDistributionDataForConsistency(PARETO, lineTmp2))
 					return false;
 
-				(*latencyDescription).latencyDistribution = PARETO;
+				(*latencyDescription_).latencyDistribution = PARETO;
 			}
 			else if (lineTmp4.at(0) == "uniformReal")
-				(*latencyDescription).latencyDistribution = UNIFORM_REAL;
+				(*latencyDescription_).latencyDistribution = UNIFORM_REAL;
 			else if (lineTmp4.at(0) ==  "uniformInt")
-				(*latencyDescription).latencyDistribution = UNIFORM_INTEGER;
+				(*latencyDescription_).latencyDistribution = UNIFORM_INTEGER;
 			else if (lineTmp4.at(0) == "gaussian")
-				(*latencyDescription).latencyDistribution = GAUSSIAN;
+				(*latencyDescription_).latencyDistribution = GAUSSIAN;
 			else
-				(*latencyDescription).latencyDistribution = LINEAR;
+				(*latencyDescription_).latencyDistribution = LINEAR;
 		}
 	}
 
-	if (!((*latencyDescription).latencyDistribution > 0))
+	if (!((*latencyDescription_).latencyDistribution > 0))
 	{
 		cout << "ERROR: No distribution details given: " << line.at(1) << endl;
 		return false;
@@ -411,6 +430,15 @@ void ReadMsc::CheckProtocolTypeIdentifier(PROTOCOL_TYPE protocolType)
 		cout << "CheckProtocolTypeIdentifier() New ID: Protocol Type " << protocolType << " -> " << protocolTypesCounter << endl;
 	}
 }
+void ReadMsc::CheckInformationElementIdentifier(INFORMATION_ELEMENT informationElement)
+{
+	if (informationElementsMap.find(informationElement) == informationElementsMap.end())
+	{
+		informationElementsCounter++;
+		informationElementsMap.insert(pair <INFORMATION_ELEMENT,IDENTIFIER> (informationElement,informationElementsCounter));
+		cout << "CheckInformationElementIdentifier() New ID: Information Element " << informationElement << " -> " << informationElementsCounter << endl;
+	}
+}
 
 IDENTIFIER ReadMsc::GetProtocolTypeIdentifier(PROTOCOL_TYPE protocolType)
 {
@@ -426,3 +454,61 @@ IDENTIFIER ReadMsc::GetProtocolTypeIdentifier(PROTOCOL_TYPE protocolType)
 	return 0;
 }
 
+COMMUNICATION_DESCRIPTION_STRUCT ReadMsc::GetParticularCommunicationDescription (USE_CASE_ID useCaseId,
+		int step)
+{
+	USE_CASE_DESCRIPTION_MAP_IT it;
+
+	it = useCaseDescrMap.find(useCaseId);
+
+	return (*it).second.at(step);
+}
+IDENTIFIER ReadMsc::TranslateNetworkElement2ID(NETWORK_ELEMENT ne, BS_ID bsId, UE_ID ueId)
+{
+	NETWORK_ELEMENTS_MAP_IT it;
+	// check that NE != (BS && UE)
+	if (ne == "BS")
+		return bsId;
+	else if (ne == "UE")
+		return (bsId * 1000 + ueId);
+
+	it = networkElementsMap.find(ne);
+
+	if (it == networkElementsMap.end())
+		return 0;
+
+	return (*it).second;
+}
+IDENTIFIER ReadMsc::TranslateProtocolType2ID(PROTOCOL_TYPE pt)
+{
+	PROTOCOL_TYPES_MAP_IT it;
+
+	it = protocolTypesMap.find(pt);
+
+	if (it == protocolTypesMap.end())
+		return 0;
+
+	return (*it).second;
+}
+IDENTIFIER ReadMsc::TranslatePrimitiveName2ID(PRIMITIVE_NAME pn)
+{
+	PRIMITIVE_NAMES_MAP_IT it;
+
+	it = primitiveNamesMap.find(pn);
+
+	if (it == primitiveNamesMap.end())
+		return 0;
+
+	return (*it).second;
+}
+IDENTIFIER ReadMsc::TranslateInformationElement2ID(INFORMATION_ELEMENT ie)
+{
+	INFORMATION_ELEMENTS_MAP_IT it;
+
+	it = informationElementsMap.find(ie);
+
+	if (it == informationElementsMap.end())
+		return 0;
+
+	return (*it).second;
+}

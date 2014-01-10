@@ -35,8 +35,9 @@
 #include <boost/random/exponential_distribution.hpp>
 #include <boost/random/bernoulli_distribution.hpp>
 #include <boost/thread/shared_mutex.hpp>
-#include "typedef.hh"
-#include "msc.hh"
+//#include "typedef.hh"
+//#include "readMsc.hh"
+#include "eventIdGenerator.hh"
 #include <boost/asio.hpp>
 #include <libconfig.h++>
 
@@ -68,7 +69,8 @@ int seed = 1,
 		numOfBss;
 float ueCycleTime;
 
-ReadMsc msc;
+ReadMsc readMsc;
+EventIdGenerator eventIdGenerator;
 /**
  * Generating EventIDs
  *
@@ -98,7 +100,6 @@ void *generateEventIds(void *t)
 			lastTime;
 	EVENT_TIMER_MAP_IT eMapIt;
 	timespec ts;
-	EVENT_ID eventId;
 
 	for (;;)
 	{
@@ -127,21 +128,34 @@ void *generateEventIds(void *t)
 		eMapIt = eventTimerMap.begin();	// Initialising iterator
 		lastTime = 0.0;
 
-		// Generating EventIDs for each UE
+		// Generating EventIDs for each UE communication description
 		while (eMapIt != eventTimerMap.end())
 		{
 			ostringstream convert;
 
 			timer.expires_from_now((*eMapIt).first - lastTime);
 			timer.wait();
-			//cout << "Generating numbers for BS ID " << (*eMapIt).second.first <<
-			//		" and UE ID " << (*eMapIt).second.second << endl;
 			clock_gettime(CLOCK_REALTIME, &ts);
-			convert << setfill('0') << setw(5) << (*eMapIt).second.first << setw(3) << (*eMapIt).second.second;
-			eventId = convert.str();
-			mut.lock();
-			eventMap.insert(TIME_EVENT_ID_PAIR (ts.tv_nsec, eventId));
-			mut.unlock();
+			// First choose which use-case should be used for this particular UE
+			USE_CASE_ID useCaseId;
+			useCaseId = eventIdGenerator.DetermineUseCaseId();
+			cout << "Use-Case ID used for this UE: " << useCaseId << endl;
+			// Now generate the EventIDs for this particular use case
+			for (int i = 0; i < readMsc.GetMscLength(useCaseId); i++)
+			{
+				EVENT_ID_VECTOR eventIdVector;
+				// use-case ID, step, base-station ID, UE ID
+				eventIdVector = eventIdGenerator.GetEventIdForComDescr(useCaseId, i, (*eMapIt).second.first, (*eMapIt).second.second);
+
+				for (unsigned int i = 0; i < eventIdVector.size(); i++)
+				{
+					EVENT_ID eventId;
+					eventId = eventIdVector.at(i);
+					mut.lock();
+					eventMap.insert(TIME_EVENT_ID_PAIR (ts.tv_nsec, eventId));
+					mut.unlock();
+				}
+			}
 
 			if (eventTimerMap.size() == 1)
 				remainingTime = ueCycleTime - (*eMapIt).first;
@@ -149,6 +163,7 @@ void *generateEventIds(void *t)
 			lastTime = (*eMapIt).first;		// keep this time for next timer
 			eventTimerMap.erase(eMapIt);
 			eMapIt = eventTimerMap.begin();	// Re-initialising iterator
+
 		}
 
 		timer.expires_from_now(remainingTime);
@@ -329,8 +344,10 @@ int main (int argc, char** argv)
 	if (!readConfiguration(config_file_name,&ueCycleTime, &numOfUesPerBs, &numOfBss))
 		return(EXIT_FAILURE);
 
-	if (msc.ReadMscConfigFile() != 0)
+	if (readMsc.ReadMscConfigFile() != 0)
 		return(EXIT_FAILURE);
+
+	eventIdGenerator.Init(&readMsc);
 
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);

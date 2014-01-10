@@ -1,7 +1,6 @@
 /**
- * @file
+ * @file typedef.hh
  * @author Sebastian Robitzsch <srobitzsch@gmail.com>
- * @version 0.1
  *
  * @section LICENSE
  *
@@ -61,7 +60,16 @@ typedef int IDENTIFIER;
  * \brief Numeric identifier for a particular EventID
  */
 typedef string EVENT_ID;
-
+/**
+ * \typedef EVENT_ID_VECTOR
+ * A vector of EventIDs
+ */
+typedef vector <EVENT_ID> EVENT_ID_VECTOR;
+/**
+ * \typedef INFORMATION_ELEMENT
+ * \brief String representation of an information element
+ */
+typedef string INFORMATION_ELEMENT;
 /**
  * \typedef BS_ID
  * \brief Base-Station Identifier
@@ -91,7 +99,11 @@ typedef unsigned int PROTOCOL_TYPES_COUNTER;
  * Counter for total number of protocol types defined in openmsc.msc
  */
 typedef unsigned int PRIMITIVE_NAMES_COUNTER;
-
+/**
+ * \typedef INFORMATION_ELEMENTS_COUNTER
+ * Counter for total number of information elements defined in openmsc.msc
+ */
+typedef unsigned int INFORMATION_ELEMENTS_COUNTER;
 /**
  * \typedef USE_CASE
  * \brief Unique integer representation of the use-case (Success || Failure)
@@ -110,6 +122,11 @@ typedef float PROBABILITY;
  */
 typedef float TIME;
 
+/**
+ * \typedef LATENCY
+ * The latency of a communication between two network elements
+ */
+typedef float LATENCY;
 /**
  * \typedef LATENCY_AVERAGE
  * Floating point numeric representation of the average communication latency between two network elements
@@ -132,7 +149,7 @@ typedef float LATENCY_MAXIMUM;
  * \typedef INFORMATION_ELEMENT_VECTOR
  * \brief vector of strings for holding the values from the MSC file
  */
-typedef vector <string> INFORMATION_ELEMENT_VECTOR;
+typedef vector <INFORMATION_ELEMENT> INFORMATION_ELEMENT_VECTOR;
 
 /**
  * \typedef LATENCY_DISTRIBUTION
@@ -275,6 +292,17 @@ typedef map <PROTOCOL_TYPE, IDENTIFIER> PROTOCOL_TYPES_MAP;
  * \brief std::map iterator for PROTOCOL_TYPES_MAP
  */
 typedef map <PROTOCOL_TYPE, IDENTIFIER>::iterator PROTOCOL_TYPES_MAP_IT;
+/**
+ * \typedef INFORMATION_ELEMENTS_MAP
+ * std::map of information elements as keys and their corresponding unique identifiers
+ */
+typedef map <INFORMATION_ELEMENT, IDENTIFIER> INFORMATION_ELEMENTS_MAP;
+
+/**
+ * \typedef INFORMATION_ELEMENT_MAP_IT
+ * \brief std::map iterator for INFORMATION_ELEMENTS_MAP
+ */
+typedef map <INFORMATION_ELEMENT, IDENTIFIER>::iterator INFORMATION_ELEMENTS_MAP_IT;
 
 /**
  * \typedef USE_CASE_DESCRIPTION_MAP
