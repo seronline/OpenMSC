@@ -11,7 +11,13 @@ $ make all
 ####################################################
 3) Run Binaries
 
-The make file creates two binaries. The OpenMSC and a receiver dummy. If both binaries are located on the same machine just invoke:
+The make file creates two binaries: the OpenMSC and a receiver dummy. First copy the example configuration files to the src directory:
+
+$ cd src
+$ cp ../doc/example/openmsc.msc .
+$ cp ../doc/example/openmsc.cfg .
+
+If both binaries are located on the same machine just invoke:
 
 $ ./receiverDummy 8000
 
