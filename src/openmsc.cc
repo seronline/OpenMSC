@@ -22,12 +22,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <iostream>
 #include <cstdlib>
 #include <pthread.h>
 #include <unistd.h>
 #include <map>
+#include <argp.h>
 #include <boost/random/linear_congruential.hpp>
 #include <boost/random/uniform_int.hpp>
 #include <boost/random/uniform_real.hpp>
@@ -71,6 +74,51 @@ float ueCycleTime;
 
 ReadMsc readMsc;
 EventIdGenerator eventIdGenerator;
+
+IP_ADDRESS ipAddress;
+PORT port;
+DEBUG_LEVEL debugLevel = 0;
+
+const char *argp_program_bug_address = "Sebastian Robitzsch <srobitzsch@gmail.com>";
+const char *argp_program_version = "OpenMSC Version 0.1";
+/* Program documentation. */
+static char doc[] =
+"OpenMSC -- MSCgen-Based Control Plane Network Trace Emulator";
+/* A description of the arguments we accept. */
+static char args_doc[] = "<IP> <PORT> <DEBUG_LEVEL>";
+struct arguments
+{
+ char *argz;
+ size_t argz_len;
+};
+static int parse_opt (
+		int key,
+		char *arg,
+		struct argp_state *state)
+{
+	switch (key)
+	{
+	case 'd':
+	{
+		if (arg == NULL)
+			debugLevel = 0;
+		else
+			debugLevel = atoi (arg);
+
+		printf ("Debug Level: %s\n", arg);
+		break;
+	}
+	case 'p':
+		port = arg;
+		printf("Port: %s\n", arg);
+		break;
+	case 'i':
+		ipAddress = arg;
+		printf("IP: %s\n", arg);
+		break;
+	}
+	return 0;
+}
 /**
  * Generating EventIDs
  *
@@ -191,7 +239,8 @@ void *sendStream(void *t)
 		boost::asio::io_service io_service;
 		udp::socket s(io_service, udp::endpoint(udp::v4(), 0));
 		udp::resolver resolver(io_service);
-		udp::resolver::query query(udp::v4(), "127.0.0.1", "8003");
+		cout << "IP: " << ipAddress << "\tPort: " << port << endl;
+		udp::resolver::query query(udp::v4(), ipAddress.c_str(), port.c_str());
 		udp::resolver::iterator iterator = resolver.resolve(query);
 
 		for(;;)
@@ -312,34 +361,26 @@ int main (int argc, char** argv)
 	pthread_attr_t attr;
 	void *status;
 	char config_file_name[] = "openmsc.cfg";
+	IP_ADDRESS ipAddress;
+	PORT port;
+	DEBUG_LEVEL debugLevel;
 
-	while ((c = getopt (argc, argv, "hvs")) != -1)
+	struct argp_option options[] =
 	{
-		switch (c)
-		{
-		case 'v':
-			cout << "OpenMSC - Alpha Version 0.1" << endl;
-			return 0;
-			break;
-		case 'h':
-			cout << "(c) 2013 OpenMSC\n\n";
-			cout << "\t-s\t\tSet seed number (not implemented yet tho)\n";
-			cout << "\t-v\t\tEnable debugging mode\n";
-			cout << "\t-h\t\tPrint this help file\n";
-			return 0;
-			break;
-		case 's':
-			//seed = argv+1;
-			break;
-		case '?':
-			if (isprint (optopt))
-					cout << "Unknown option `-%c'.\n";
-			else
-					cout << "Unknown option character `\\x%x'.\n";
+		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},
+		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
+		{ "debug", 'd', "<NUM>", 0, "Debug level\n\t0 - off,\n\t1 - Warnings,\n\t2 - Detailed" },
+		{ 0 }
+	};
+	struct argp argp = { options, parse_opt, args_doc, doc };
 
-			return(EXIT_FAILURE);
-		}
+	if (argc <= 1)
+	{
+		cout << "Error! No arguments given -> ./openmsc -?\n";
+		return 0;
 	}
+	else
+		argp_parse (&argp, argc, argv, 0, 0, 0);
 
 	if (!readConfiguration(config_file_name,&ueCycleTime, &numOfUesPerBs, &numOfBss))
 		return(EXIT_FAILURE);
@@ -368,23 +409,6 @@ int main (int argc, char** argv)
 		exit(-1);
 	}
 
-	// free attribute and wait for the other threads
-/*	pthread_attr_destroy(&attr);
-
-	rc = pthread_join(threads[0], &status);
-
-	if (rc){
-		cout << "Error:unable to join," << rc << endl;
-		exit(-1);
-	}
-
-	rc = pthread_join(threads[1], &status);
-
-	if (rc){
-		cout << "Error:unable to join," << rc << endl;
-		exit(-1);
-	}
-*/
 	pthread_exit(NULL);
 
 	return(EXIT_SUCCESS);

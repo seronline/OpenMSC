@@ -32,6 +32,21 @@
 using namespace std;
 
 /**
+ * \typedef IP_ADDRESS
+ * IP address of the EventID receiver (OpenMSC receiver)
+ */
+typedef string IP_ADDRESS;
+/**
+ * \typedef PORT
+ * Port number of the EventID receiver (OpenMSC receiver)
+ */
+typedef string PORT;
+/**
+ * \typedef DEBUG_LEVEL
+ * Integer representation of the debug level
+ */
+typedef int DEBUG_LEVEL;
+/**
  * \typedef NETWORK_ELEMENT
  * \brief string representation of a network element
  */

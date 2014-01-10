@@ -71,16 +71,16 @@ EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,
 		if (comDescrStruct.informationElements.at(i) == "UE_ID")
 			informationElementValueId = ueId;
 		else if (comDescrStruct.informationElements.at(i) == "BS_ID")
-			informationElementValueId = bsId;
+			informationElementValueId = bsId*100; // making BS ID distinguishable to UE ID
 		else
-			informationElementValueId = 99999;
+			informationElementValueId = 999; // dummy value (see to-do above)
 		// Generating the EventID
-		convert << setfill('0') << setw(8) << sourceId
-				<< setw(8) << destinationId
-				<< setw(3) << protocolTypeId
-				<< setw(3) << primitiveNameId
-				<< setw(4) << informationElementId
-				<< setw(5) << informationElementValueId;
+		convert << setfill('0') << setw(5) << sourceId
+				<< setw(5) << destinationId
+				<< setw(2) << protocolTypeId
+				<< setw(2) << primitiveNameId
+				<< setw(2) << informationElementId
+				<< setw(3) << informationElementValueId;
 		cout << "GetEventIdForComDescr() EventID = " << convert.str() << endl;
 		eIdV.insert(eIdV.end(),convert.str());
 	}

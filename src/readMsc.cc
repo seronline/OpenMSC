@@ -468,9 +468,9 @@ IDENTIFIER ReadMsc::TranslateNetworkElement2ID(NETWORK_ELEMENT ne, BS_ID bsId, U
 	NETWORK_ELEMENTS_MAP_IT it;
 	// check that NE != (BS && UE)
 	if (ne == "BS")
-		return bsId;
+		return bsId*100;
 	else if (ne == "UE")
-		return (bsId * 1000 + ueId);
+		return (bsId * 100 + ueId);
 
 	it = networkElementsMap.find(ne);
 
