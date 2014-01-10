@@ -1,7 +1,22 @@
-Just run 
+####################################################
+1) Required Libraries
 
-	# make
+$ apt-get install libboost-all-dev libboost-dev
 
-and execute the binary
+####################################################
+2) Compiling Binaries
 
-	# ./openmsc
+$ make all
+
+####################################################
+3) Run Binaries
+
+The make file creates two binaries. The OpenMSC and a receiver dummy. If both binaries are located on the same machine just invoke:
+
+$ ./receiverDummy 8000
+
+in one terminal and 
+
+$ ./openmsc -i 127.0.0.1 -p 8000
+
+in another one.
