@@ -27,7 +27,7 @@ class EventIdGenerator {
 public:
 	/**
 	 * Initilising LatencyCalculator class with obtaining the pointer to the ReadMsc class which holds all the latency settings provided by the user.
-	 * @param rMsc_ ReadMsc pointer
+	 * @param rMsc_ Pointer to ReadMsc class
 	 * @return void
 	 */
 	void Init(ReadMsc *rMsc_);
@@ -54,6 +54,12 @@ public:
 	 * @param comDescrStruct
 	 */
 	LATENCY CalculateLatency(COMMUNICATION_DESCRIPTION_STRUCT comDescrStruct);
+	/**
+	 * Initialising logging in ReadMsc class
+	 * @param l Pointer to LoggerPtr class
+	 */
+	void InitLog(log4cxx::LoggerPtr l);
 private:
 	ReadMsc *readMsc_;
+	log4cxx::LoggerPtr logger;	/** Pointer to LoggerPtr class */
 };

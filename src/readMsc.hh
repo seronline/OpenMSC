@@ -23,8 +23,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "typedef.hh"
-
+#include "dictionary.hh"
 /**
  * Class for parsing MSCgen configuration file
  */
@@ -88,6 +87,16 @@ public:
 	 * @return A unique identifier for the given information element name
 	 */
 	IDENTIFIER TranslateInformationElement2ID(INFORMATION_ELEMENT ie);
+	/**
+	 * Keep pointer to Dictionary class and its previous initilisation in openmsc.cc
+	 * @param dict_ Pointer to Dictionary class
+	 */
+	void EstablishDictConnection(Dictionary *dict_);
+	/**
+	 * Initialising logging in ReadMsc class
+	 * @param l Pointer to LoggerPtr class
+	 */
+	void InitLog(log4cxx::LoggerPtr l);
 private:
 	/**
 	 * \brief add communication description
@@ -181,12 +190,15 @@ private:
 	IDENTIFIER GetProtocolTypeIdentifier(PROTOCOL_TYPE protocolType);
 
 	USE_CASE_DESCRIPTION_MAP useCaseDescrMap; /** map initialiser holding the use-case ID and a vector of all communications*/
-	NETWORK_ELEMENTS_MAP networkElementsMap;
-	PRIMITIVE_NAMES_MAP primitiveNamesMap;
-	PROTOCOL_TYPES_MAP protocolTypesMap;
-	INFORMATION_ELEMENTS_MAP informationElementsMap;
-	NETWORK_ELEMENTS_COUNTER networkElementsCounter;
-	PROTOCOL_TYPES_COUNTER protocolTypesCounter;
-	PRIMITIVE_NAMES_COUNTER primitiveNamesCounter;
-	INFORMATION_ELEMENTS_COUNTER informationElementsCounter;
+	NETWORK_ELEMENTS_MAP networkElementsMap;	/** TODO */
+	PRIMITIVE_NAMES_MAP primitiveNamesMap;		/** TODO */
+	PROTOCOL_TYPES_MAP protocolTypesMap;		/** TODO */
+	INFORMATION_ELEMENTS_MAP informationElementsMap;	/** TODO */
+	NETWORK_ELEMENTS_COUNTER networkElementsCounter;	/** TODO */
+	PROTOCOL_TYPES_COUNTER protocolTypesCounter;	/** TODO */
+	PRIMITIVE_NAMES_COUNTER primitiveNamesCounter;	/** TODO */
+	INFORMATION_ELEMENTS_COUNTER informationElementsCounter;	/** TODO */
+
+	Dictionary *dictionary_;	/** Pointer to Dictionary class */
+	log4cxx::LoggerPtr logger;	/** Pointer to LoggerPtr class */
 };

@@ -30,6 +30,11 @@ void EventIdGenerator::Init(ReadMsc *rMsc_)
 	readMsc_ = rMsc_;
 }
 
+void EventIdGenerator::InitLog(log4cxx::LoggerPtr l)
+{
+	logger = l;
+}
+
 USE_CASE_ID EventIdGenerator::DetermineUseCaseId()
 {
 	USE_CASE_ID useCaseId;
@@ -81,7 +86,7 @@ EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,
 				<< setw(2) << primitiveNameId
 				<< setw(2) << informationElementId
 				<< setw(3) << informationElementValueId;
-		cout << "GetEventIdForComDescr() EventID = " << convert.str() << endl;
+		LOG4CXX_DEBUG(logger, "Generated EventID = " << convert.str());;
 		eIdV.insert(eIdV.end(),convert.str());
 	}
 

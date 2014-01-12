@@ -76,6 +76,11 @@ typedef int IDENTIFIER;
  */
 typedef string EVENT_ID;
 /**
+ * \typedef DICTIONARY_FILE_NAME
+ * Filename for an OpenMSC dictionary
+ */
+typedef const char* DICTIONARY_FILE_NAME;
+/**
  * \typedef EVENT_ID_VECTOR
  * A vector of EventIDs
  */

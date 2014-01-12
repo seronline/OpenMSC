@@ -38,12 +38,9 @@
 #include <boost/random/exponential_distribution.hpp>
 #include <boost/random/bernoulli_distribution.hpp>
 #include <boost/thread/shared_mutex.hpp>
-//#include "typedef.hh"
-//#include "readMsc.hh"
 #include "eventIdGenerator.hh"
 #include <boost/asio.hpp>
 #include <libconfig.h++>
-
 using namespace libconfig;
 
 #if !defined(__SUNPRO_CC) || (__SUNPRO_CC > 0x530)
@@ -74,11 +71,23 @@ float ueCycleTime;
 
 ReadMsc readMsc;
 EventIdGenerator eventIdGenerator;
-
+Dictionary dictionary;
 IP_ADDRESS ipAddress;
 PORT port;
-DEBUG_LEVEL debugLevel = 0;
+/// log4cxx
+#include <log4cxx/logger.h>
+#include <log4cxx/helpers/pool.h>
+#include <log4cxx/basicconfigurator.h>
+#include <log4cxx/fileappender.h>
+#include <log4cxx/simplelayout.h>
+#include "log4cxx/consoleappender.h"
 
+log4cxx::FileAppender * fileAppender = new log4cxx::FileAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()), "openmsc.log", false);
+log4cxx::ConsoleAppender * consoleAppender = new log4cxx::ConsoleAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()));
+log4cxx::helpers::Pool p;
+log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("logger");
+///
+/// ARGP
 const char *argp_program_bug_address = "Sebastian Robitzsch <srobitzsch@gmail.com>";
 const char *argp_program_version = "OpenMSC Version 0.1";
 /* Program documentation. */
@@ -100,25 +109,36 @@ static int parse_opt (
 	{
 	case 'd':
 	{
-		if (arg == NULL)
-			debugLevel = 0;
+		if (strcmp(arg,"ERROR") == 0)
+			log4cxx::Logger::getRootLogger()->setLevel(log4cxx::Level::getError());
+		else if (strcmp(arg,"INFO") == 0)
+					log4cxx::Logger::getRootLogger()->setLevel(log4cxx::Level::getInfo());
+		else if (strcmp(arg,"DEBUG") == 0)
+			log4cxx::Logger::getRootLogger()->setLevel(log4cxx::Level::getDebug());
+		else if (strcmp(arg,"TRACE") == 0)
+			log4cxx::Logger::getRootLogger()->setLevel(log4cxx::Level::getTrace());
 		else
-			debugLevel = atoi (arg);
+		{
+			LOG4CXX_ERROR(logger,"No debugging level provided");
+			return(EXIT_FAILURE);
+		}
 
-		printf ("Debug Level: %s\n", arg);
+		LOG4CXX_INFO(logger,"Debug level set to " << arg);
 		break;
 	}
 	case 'p':
 		port = arg;
-		printf("Port: %s\n", arg);
+		LOG4CXX_INFO(logger,"Destination port is set to " << port);
 		break;
 	case 'i':
 		ipAddress = arg;
-		printf("IP: %s\n", arg);
+		LOG4CXX_INFO(logger,"Destination IP is set to " << ipAddress);
 		break;
 	}
 	return 0;
 }
+///
+
 /**
  * Generating EventIDs
  *
@@ -187,7 +207,6 @@ void *generateEventIds(void *t)
 			// First choose which use-case should be used for this particular UE
 			USE_CASE_ID useCaseId;
 			useCaseId = eventIdGenerator.DetermineUseCaseId();
-			cout << "Use-Case ID used for this UE: " << useCaseId << endl;
 			// Now generate the EventIDs for this particular use case
 			for (int i = 0; i < readMsc.GetMscLength(useCaseId); i++)
 			{
@@ -239,7 +258,6 @@ void *sendStream(void *t)
 		boost::asio::io_service io_service;
 		udp::socket s(io_service, udp::endpoint(udp::v4(), 0));
 		udp::resolver resolver(io_service);
-		cout << "IP: " << ipAddress << "\tPort: " << port << endl;
 		udp::resolver::query query(udp::v4(), ipAddress.c_str(), port.c_str());
 		udp::resolver::iterator iterator = resolver.resolve(query);
 
@@ -314,13 +332,12 @@ bool readConfiguration(char *configFileName_,
 	}
 	catch(const FileIOException &fioex)
 	{
-		std::cerr << "I/O error while reading file." << std::endl;
+		LOG4CXX_ERROR(logger,"I/O error while reading file. " << configFileName_);
 		return false;
 	}
 	catch(const ParseException &pex)
 	{
-		std::cerr << "Parse error at " << pex.getFile() << ":" << pex.getLine()
-			<< " - " << pex.getError() << std::endl;
+		LOG4CXX_ERROR(logger,"Parse error at " << configFileName_ << ":" << pex.getLine() << " - " << pex.getError());
 		return false;
 	}
 
@@ -329,7 +346,7 @@ bool readConfiguration(char *configFileName_,
 	// Output a list of all books in the inventory.
 	try
 	{
-		cout << "Reading libconfig configuration file\n";
+		LOG4CXX_INFO(logger,"Reading libconfig configuration file " << configFileName_);
 		const Setting &openmscConfig = root["openmscConfig"];
 		openmscConfig.lookupValue("numOfUesPerBs", *numOfUesPerBs_);
 		openmscConfig.lookupValue("numOfBss", *numOfBss_);
@@ -340,8 +357,9 @@ bool readConfiguration(char *configFileName_,
 		// Ignore.
 		return(EXIT_FAILURE);
 	}
-
-	cout << "UEs per BS: " << *numOfUesPerBs_ << "\nBase Stations: " << *numOfBss_ << "\nCycle Time: " << *ueCycleTime_ << endl;
+	LOG4CXX_INFO(logger, "UEs per BS: " << *numOfUesPerBs_);
+	LOG4CXX_INFO(logger, "Base Stations: " << *numOfBss_);
+	LOG4CXX_INFO(logger, "Cycle Time: " << *ueCycleTime_);
 
 	return true;
 }
@@ -363,24 +381,34 @@ int main (int argc, char** argv)
 	char config_file_name[] = "openmsc.cfg";
 	IP_ADDRESS ipAddress;
 	PORT port;
-	DEBUG_LEVEL debugLevel;
+
+	log4cxx::BasicConfigurator::configure(log4cxx::AppenderPtr(fileAppender));
+	log4cxx::BasicConfigurator::configure(log4cxx::AppenderPtr(consoleAppender));
+	log4cxx::Logger::getRootLogger()->setLevel(log4cxx::Level::getDebug());
+	fileAppender->activateOptions(p);
 
 	struct argp_option options[] =
 	{
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},
 		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
-		{ "debug", 'd', "<NUM>", 0, "Debug level\n\t0 - off,\n\t1 - Warnings,\n\t2 - Detailed" },
+		{ "debug", 'd', "<LEVEL>", 0, "Debug level\n\tERROR - only errors,\n\tINFO - Warnings (default),\n\tDEBUG - \n\tTRACE - Very Detailed" },
 		{ 0 }
 	};
 	struct argp argp = { options, parse_opt, args_doc, doc };
 
 	if (argc <= 1)
 	{
-		cout << "Error! No arguments given -> ./openmsc -?\n";
+		LOG4CXX_ERROR(logger, "No arguments given -> ./openmsc -?\n");
 		return 0;
 	}
-	else
-		argp_parse (&argp, argc, argv, 0, 0, 0);
+
+	if(argp_parse (&argp, argc, argv, 0, 0, 0) != 0)
+		return(EXIT_FAILURE);
+
+	dictionary.Init();	// initialising the dictionaries
+	readMsc.InitLog(logger);
+	dictionary.InitLog(logger);
+	readMsc.EstablishDictConnection(&dictionary);
 
 	if (!readConfiguration(config_file_name,&ueCycleTime, &numOfUesPerBs, &numOfBss))
 		return(EXIT_FAILURE);
@@ -389,23 +417,23 @@ int main (int argc, char** argv)
 		return(EXIT_FAILURE);
 
 	eventIdGenerator.Init(&readMsc);
-
+	eventIdGenerator.InitLog(logger);
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-	cout << "main() : creating generateEventIds thread" << endl;
+	LOG4CXX_DEBUG(logger, "Creating generateEventIds thread");
 	rc = pthread_create(&threads[0], NULL, generateEventIds, (void *)i );
 
 	if (rc){
-		cout << "Error:unable to create thread," << rc << endl;
+		LOG4CXX_ERROR(logger,"Unable to create generateEventIds thread, " << rc);
 		exit(-1);
 	}
 
-	cout << "main() : creating sendStream thread" << endl;
+	LOG4CXX_DEBUG(logger, "Creating sendStream thread");
 	rc = pthread_create(&threads[1], NULL, sendStream, (void *)i );
 
 	if (rc){
-		cout << "Error:unable to create thread," << rc << endl;
+		LOG4CXX_ERROR(logger,"Unable to create sendStream thread, " << rc);
 		exit(-1);
 	}
 

@@ -1,19 +1,19 @@
 ####################################################
 1) Required Libraries
 
-$ apt-get install libboost-all-dev libboost-dev
+$ apt-get install libboost-all-dev libboost-dev liblog4cxx10-dev
 
 ####################################################
 2) Compiling Binaries
 
+$ cd src/
 $ make all
 
 ####################################################
 3) Run Binaries
 
-The make file creates two binaries: the OpenMSC and a receiver dummy. First copy the example configuration files to the src directory:
-
-$ cd src
+The make file creates two binaries in SVN/bin: the OpenMSC and a receiver dummy. First copy the example configuration files to the SVN/bin directory:
+$ cd ../bin
 $ cp ../doc/example/openmsc.msc .
 $ cp ../doc/example/openmsc.cfg .
 

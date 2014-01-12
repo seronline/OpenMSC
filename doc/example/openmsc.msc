@@ -17,7 +17,7 @@ msc {
 	--- [ label = "Success" ]; # P = {0.8} 
 
 	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)" ]; # latencyDist = {exponential} latencyLambda = {4} latencyMin = {5} latencyMax = {100}
-	BS => MME [ label = "S1AP-INITAL_UE_MESSAGE(UE_ID)" ]; # latencyDist = {exponential} latencyLambda = {2} latencyMin = {0.1} latencyMax = {1}
+	BS => MME [ label = "S1AP-INITAL_UE_MESSAGE(UE_ID,BS_ID)" ]; # latencyDist = {exponential} latencyLambda = {2} latencyMin = {0.1} latencyMax = {1}
 	BS <= MME [ label = "S1AP-DOWNLINK_NAS_TRANSPORT(UE_ID)" ]; # latencyDist = {linear} latency = {1}
 	UE <= BS [ label = "RRC-CONNECTION_SETUP(UE_ID)" ]; # latencyDist = {linear} latency = {1}
 	UE => BS [ label = "RRC-CONNECTION_COMPLETE(UE_ID)" ]; # latencyDist = {linear} latency = {1}

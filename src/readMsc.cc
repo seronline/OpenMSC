@@ -39,6 +39,10 @@
 
 using namespace std;
 
+void ReadMsc::InitLog(log4cxx::LoggerPtr l)
+{
+	logger = l;
+}
 int ReadMsc::ReadMscConfigFile ()
 {
 	ifstream inputFile;	/** char file input stream */
@@ -62,7 +66,6 @@ int ReadMsc::ReadMscConfigFile ()
 		if (lineVector1.size() > 1)
 		{
 			MSC_LINE_VECTOR caseConfig;
-			cout << lineVector1.size() << line << endl;
 			boost::split (caseConfig, line, boost::is_any_of("\""));
 
 			// checking for use-case
@@ -70,12 +73,12 @@ int ReadMsc::ReadMscConfigFile ()
 			{
 				if (caseConfig.at(i) == "Success")
 				{
-					cout << "Success use-case found\n";
+					LOG4CXX_DEBUG(logger, "Success use-case found");
 					useCaseId++;
 				}
 				else if (caseConfig.at(i) == "Failure")
 				{
-					cout << "New failure use-case found\n";
+					LOG4CXX_DEBUG(logger, "New Failure use-case found");
 					useCaseId++;
 				}
 			}
@@ -164,7 +167,7 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		comDescrV.insert(comDescrV.begin(),commDescrStruct);
 		useCaseDescrMap.insert(pair <USE_CASE_ID, COMMUNICATION_DESCRIPTION_VECTOR> (uc, comDescrV));
 		useCaseDescrMapIt = useCaseDescrMap.find(uc);
-		cout << "New use-case map key " << uc << " created:";
+		LOG4CXX_INFO(logger, "New use-case map key " << uc << " created");
 	}
 	// Add to existing use-case
 	else
@@ -172,17 +175,14 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		useCaseDescrMapIt = useCaseDescrMap.find(uc);
 		// Add new communication description at the end of the vector
 		(*useCaseDescrMapIt).second.insert((*useCaseDescrMapIt).second.end(),commDescrStruct);
-		cout << "Communication description added to existing use-case with ID " << uc;
-		//cout << "Use-case map entry " << (*useCaseDescrMapIt).first
-		//		<< " extended with new value field " << (*useCaseDescrMapIt).second.size() << endl;
+		LOG4CXX_INFO(logger, "Communication description added to existing use-case with ID " << (*useCaseDescrMapIt).first << ":" << (*useCaseDescrMapIt).second.size());
 	}
-
-	cout << ":\n\tSource:         " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).source
+	LOG4CXX_DEBUG(logger, "Communication description:\n\tSource:         " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).source
 			<< "\n\tDestination:    " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).destination
 			<< "\n\tProtocol Type:  " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).protocolType
 			<< "\n\tPrimitive Name: " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).primitiveName
 			<< "\n\tNumber of IEs:  " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).informationElements.size()
-			<< endl;
+			);
 	return true;
 }
 
@@ -237,7 +237,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 			*primitiveName_ = lineTmp3.at(0);
 		else
 		{
-			cout << "ERROR: No information elements given in openmsc.msc file: " << lineTmp.at(1) << endl;
+			LOG4CXX_ERROR(logger, "No information elements given in openmsc.msc file: " << lineTmp.at(1));
 			return false;
 		}
 		// Information elements
@@ -265,7 +265,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 		boost::split (lineTmp3, lineTmp2.at(1), boost::is_any_of(" "));
 	else
 	{
-		cout << "ERROR: no data given: " << line.at(1) << endl;
+		LOG4CXX_ERROR(logger, "No data given: " << line.at(1));
 
 		return false;
 	}
@@ -297,7 +297,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 				}
 				else
 				{
-					cout << "ERROR: lambda not provided in openmsc.msc file for exponential distribution: " << lineTmp2.at(1) << endl;
+					LOG4CXX_ERROR(logger, "Lambda not provided in openmsc.msc file for exponential distribution: " << lineTmp2.at(1));
 					return false;
 				}
 			}
@@ -321,7 +321,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 
 	if (!((*latencyDescription_).latencyDistribution > 0))
 	{
-		cout << "ERROR: No distribution details given: " << line.at(1) << endl;
+		LOG4CXX_ERROR(logger, "No distribution details given: " << line.at(1));
 		return false;
 	}
 	return true;
@@ -335,7 +335,7 @@ bool ReadMsc::CheckDistributionDataForConsistency(LATENCY_DISTRIBUTION dist,
 	boost::algorithm::split_regex(tmp1, line.at(1), boost::regex ("latencyDist"));
 
 	if (tmp1.size() <= 1) {
-		cout << "ERROR: latencyDist information is missing\n";
+		LOG4CXX_ERROR(logger, "latencyDist information is missing");
 		return false;
 	}
 
@@ -347,7 +347,7 @@ bool ReadMsc::CheckDistributionDataForConsistency(LATENCY_DISTRIBUTION dist,
 
 		if (tmp1.size() <= 1)
 		{
-			cout << "ERROR: latencyLambda is missing for exponential distribution: " << line.at(1) << endl;
+			LOG4CXX_ERROR(logger, "latencyLambda is missing for exponential distribution: " << line.at(1));
 			return false;
 		}
 
@@ -356,7 +356,7 @@ bool ReadMsc::CheckDistributionDataForConsistency(LATENCY_DISTRIBUTION dist,
 
 		if (tmp1.size() <= 1)
 		{
-			cout << "ERROR: latencyMin is missing for exponential distribution\n";
+			LOG4CXX_ERROR(logger, "latencyMin is missing for exponential distribution");
 			return false;
 		}
 
@@ -365,7 +365,7 @@ bool ReadMsc::CheckDistributionDataForConsistency(LATENCY_DISTRIBUTION dist,
 
 		if (tmp1.size() <= 1)
 		{
-			cout << "ERROR: latencyMax is missing for exponential distribution\n";
+			LOG4CXX_ERROR(logger, "latencyMax is missing for exponential distribution");
 			return false;
 		}
 	}
@@ -379,7 +379,9 @@ void ReadMsc::CheckNetworkElementIdentifier(NETWORK_ELEMENT networkElement)
 	{
 		networkElementsCounter++;
 		networkElementsMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (networkElement,networkElementsCounter));
-		cout << "CheckNetworkElementIdentifier() New ID: Network Element " << networkElement << " -> " << networkElementsCounter << endl;
+		LOG4CXX_INFO(logger, "New ID: Network Element " << networkElement << " -> " << networkElementsCounter);
+		(*dictionary_).WriteNetworkElement(networkElement, networkElementsCounter);
+		//TODO add MySQL entry
 	}
 }
 
@@ -403,7 +405,9 @@ void ReadMsc::CheckPrimitiveNameIdentifier(PRIMITIVE_NAME primitiveName)
 	{
 		primitiveNamesCounter++;
 		primitiveNamesMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (primitiveName,primitiveNamesCounter));
-		cout << "CheckPrimitiveNameIdentifier() New ID: Primitive Name " << primitiveName << " -> " << primitiveNamesCounter << endl;
+		LOG4CXX_INFO(logger, "New ID: Primitive Name " << primitiveName << " -> " << primitiveNamesCounter);
+		(*dictionary_).WritePrimitiveName(primitiveName, primitiveNamesCounter);
+		//TODO add MySQL entry
 	}
 }
 
@@ -427,7 +431,9 @@ void ReadMsc::CheckProtocolTypeIdentifier(PROTOCOL_TYPE protocolType)
 	{
 		protocolTypesCounter++;
 		protocolTypesMap.insert(pair <PROTOCOL_TYPE,IDENTIFIER> (protocolType,protocolTypesCounter));
-		cout << "CheckProtocolTypeIdentifier() New ID: Protocol Type " << protocolType << " -> " << protocolTypesCounter << endl;
+		LOG4CXX_INFO(logger, "New ID: Protocol Type " << protocolType << " -> " << protocolTypesCounter);
+		(*dictionary_).WriteProtocolType(protocolType, protocolTypesCounter);
+		//TODO add MySQL entry
 	}
 }
 void ReadMsc::CheckInformationElementIdentifier(INFORMATION_ELEMENT informationElement)
@@ -436,7 +442,9 @@ void ReadMsc::CheckInformationElementIdentifier(INFORMATION_ELEMENT informationE
 	{
 		informationElementsCounter++;
 		informationElementsMap.insert(pair <INFORMATION_ELEMENT,IDENTIFIER> (informationElement,informationElementsCounter));
-		cout << "CheckInformationElementIdentifier() New ID: Information Element " << informationElement << " -> " << informationElementsCounter << endl;
+		LOG4CXX_INFO(logger, "New ID: Information Element " << informationElement << " -> " << informationElementsCounter);
+		(*dictionary_).WriteInformationElement(informationElement, informationElementsCounter);
+		//TODO add MySQL entry
 	}
 }
 
@@ -511,4 +519,9 @@ IDENTIFIER ReadMsc::TranslateInformationElement2ID(INFORMATION_ELEMENT ie)
 		return 0;
 
 	return (*it).second;
+}
+
+void ReadMsc::EstablishDictConnection(Dictionary *dict_)
+{
+	dictionary_ = dict_;
 }
