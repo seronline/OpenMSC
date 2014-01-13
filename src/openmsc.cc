@@ -59,6 +59,7 @@ boost::mutex mut;
 EVENT_MAP eventMap;
 EVENT_TIMER_MAP eventTimerMap;
 using boost::asio::ip::udp;
+using boost::asio::ip::tcp;
 /**
  * \var seed
  * \brief seed
@@ -74,6 +75,8 @@ EventIdGenerator eventIdGenerator;
 Dictionary dictionary;
 IP_ADDRESS ipAddress;
 PORT port;
+bool TCP = false;
+bool UDP = true;
 /// log4cxx
 #include <log4cxx/logger.h>
 #include <log4cxx/helpers/pool.h>
@@ -133,6 +136,16 @@ static int parse_opt (
 	case 'i':
 		ipAddress = arg;
 		LOG4CXX_INFO(logger,"Destination IP is set to " << ipAddress);
+		break;
+	case 't':
+		LOG4CXX_INFO(logger, "Enabling TCP communication");
+		TCP = true;
+		UDP = false;
+		break;
+	case 'u':
+		LOG4CXX_INFO(logger, "Enabling UDP communication");
+		UDP = true;
+		TCP = false;
 		break;
 	}
 	return 0;
@@ -254,55 +267,59 @@ void *sendStream(void *t)
 	EVENT_MAP_IT eventMapIt, eventMapCopyIt;
 	timespec ts;
 
-	try {
-		boost::asio::io_service io_service;
-		udp::socket s(io_service, udp::endpoint(udp::v4(), 0));
-		udp::resolver resolver(io_service);
-		udp::resolver::query query(udp::v4(), ipAddress.c_str(), port.c_str());
-		udp::resolver::iterator iterator = resolver.resolve(query);
+	boost::asio::io_service io_serviceUdp, io_serviceTcp;
 
-		for(;;)
-		{
-			clock_gettime(CLOCK_REALTIME, &ts);
-			eventMapIt = eventMap.begin();
+	udp::socket udpSocket(io_serviceUdp, udp::endpoint(udp::v4(), 0));
+	udp::resolver resolverUdp(io_serviceUdp);
+	udp::resolver::query queryUdp(udp::v4(), ipAddress.c_str(), port.c_str());
+	udp::resolver::iterator iteratorUdp = resolverUdp.resolve(queryUdp);
 
-			while (eventMapIt != eventMap.end() && eventMapIt->first < ts.tv_nsec)
-			{
-				string payload;
-
-				mut.lock();
-				payload = (*eventMapIt).second;
-				eventMap.erase(eventMapIt);
-				mut.unlock();
-				size_t payloadLength = payload.length();
-				s.send_to(boost::asio::buffer(payload, payloadLength), *iterator);
-				eventMapIt = eventMap.begin();
-			}
-		}
+	tcp::resolver resolverTcp(io_serviceTcp);
+	tcp::resolver::query queryTcp(tcp::v4(), ipAddress.c_str(), port.c_str());
+	tcp::resolver::iterator iteratorTcp = resolverTcp.resolve(queryTcp);
+	tcp::socket tcpSocket(io_serviceTcp);
+	// Establishing TCP connection
+	try
+	{
+		boost::asio::connect(tcpSocket, iteratorTcp);
 	}
 	catch (std::exception& e)
 	{
-		std::cerr << "Exception: " << e.what() << "\n";
+		if (TCP)
+			LOG4CXX_ERROR(logger, "TCP Exception: " << e.what());
+	}
+	for(;;)
+	{
+		clock_gettime(CLOCK_REALTIME, &ts);
+		eventMapIt = eventMap.begin();
 
-		for(;;)
+		while (eventMapIt != eventMap.end() && eventMapIt->first < ts.tv_nsec)
 		{
-			clock_gettime(CLOCK_REALTIME, &ts);
+			string payload;
+
+			mut.lock();
+			payload = (*eventMapIt).second;
+			LOG4CXX_TRACE(logger,"Deleting " << (*eventMapIt).first << " " << (*eventMapIt).second << " from eventMap with current size " << eventMap.size());
+			eventMap.erase(eventMapIt);
+			mut.unlock();
+			size_t payloadLength = payload.length();
+
+			if (UDP)
+				udpSocket.send_to(boost::asio::buffer(payload, payloadLength), *iteratorUdp);
+			else if (TCP)
+			{
+				boost::asio::write(tcpSocket, boost::asio::buffer(payload, payloadLength));
+				char replyTcp[100];
+				size_t reply_length = boost::asio::read(tcpSocket,
+					boost::asio::buffer(replyTcp, payloadLength));
+				//std::cout << "Reply is: ";
+				//std::cout.write(reply, reply_length);
+				//std::cout << "\n";
+			}
+			else
+				LOG4CXX_ERROR(logger, "Neither UDP nor TCP was selected");
 
 			eventMapIt = eventMap.begin();
-			while (eventMapIt != eventMap.end() && eventMapIt->first < ts.tv_nsec)
-			{
-				string payload;
-				int payloadLength;
-
-				mut.lock();
-				eventMapIt = eventMap.begin();
-				payload = (*eventMapIt).second;
-				payloadLength = payload.length();
-				//cout << "Deleting " << (*eventMapIt).first << " " << (*eventMapIt).second << "\tMap Size = " << eventMap.size() << endl;
-				eventMap.erase(eventMapIt);
-				eventMapIt = eventMap.begin();
-				mut.unlock();
-			}
 		}
 	}
 
@@ -389,9 +406,11 @@ int main (int argc, char** argv)
 
 	struct argp_option options[] =
 	{
+		{ "TCP", 't', 0, 0, "Using IPv4 over TCP to communicate with destination module"},
+		{ "UDP", 'u', 0, 0, "Using IPv4 over UDP to communicate with destination module"},
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},
 		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
-		{ "debug", 'd', "<LEVEL>", 0, "Debug level\n\tERROR - only errors,\n\tINFO - Warnings (default),\n\tDEBUG - \n\tTRACE - Very Detailed" },
+		{ "debug", 'd', "<LEVEL>", 0, "Debug level (ERROR|INFO|DEBUG|TRACE)" },
 		{ 0 }
 	};
 	struct argp argp = { options, parse_opt, args_doc, doc };
