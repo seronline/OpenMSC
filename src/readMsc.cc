@@ -377,11 +377,37 @@ void ReadMsc::CheckNetworkElementIdentifier(NETWORK_ELEMENT networkElement)
 {
 	if (networkElementsMap.find(networkElement) == networkElementsMap.end())
 	{
-		networkElementsCounter++;
-		networkElementsMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (networkElement,networkElementsCounter));
-		LOG4CXX_INFO(logger, "New ID: Network Element " << networkElement << " -> " << networkElementsCounter);
-		(*dictionary_).WriteNetworkElement(networkElement, networkElementsCounter);
-		//TODO add MySQL entry
+		if (networkElement == "UE")
+		{
+			for (int bsIt = 1; bsIt <= *numOfBss_; bsIt++)
+			{
+				for(int ueIt = 1; ueIt <= *numOfUesPerBs_; ueIt++)
+				{
+					// only store the largest UE ID
+					networkElementsMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (networkElement,bsIt*100 + ueIt));
+					LOG4CXX_INFO(logger, "New ID: Network Element " << networkElement << " -> " <<  bsIt*100 + ueIt);
+					(*dictionary_).WriteNetworkElement(networkElement, bsIt*100 + ueIt);
+				}
+			}
+		}
+		else if (networkElement == "BS")
+		{
+			for (int bsIt = 1; bsIt <= *numOfBss_; bsIt++)
+			{
+				// only store the largest BS ID
+				networkElementsMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (networkElement,bsIt*100));
+				LOG4CXX_INFO(logger, "New ID: Network Element " << networkElement << " -> " <<  bsIt*100);
+				(*dictionary_).WriteNetworkElement(networkElement, bsIt*100);
+			}
+		}
+		else
+		{
+			networkElementsCounter++;
+			networkElementsMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (networkElement,networkElementsCounter));
+			LOG4CXX_INFO(logger, "New ID: Network Element " << networkElement << " -> " << networkElementsCounter);
+			(*dictionary_).WriteNetworkElement(networkElement, networkElementsCounter);
+			//TODO add MySQL entry
+		}
 	}
 }
 
@@ -524,4 +550,9 @@ IDENTIFIER ReadMsc::TranslateInformationElement2ID(INFORMATION_ELEMENT ie)
 void ReadMsc::EstablishDictConnection(Dictionary *dict_)
 {
 	dictionary_ = dict_;
+}
+void ReadMsc::AddConfig(int *uesPerBs_, int *bss_)
+{
+	numOfUesPerBs_ = uesPerBs_;
+	numOfBss_ = bss_;
 }

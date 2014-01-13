@@ -377,6 +377,7 @@ bool readConfiguration(char *configFileName_,
 	LOG4CXX_INFO(logger, "UEs per BS: " << *numOfUesPerBs_);
 	LOG4CXX_INFO(logger, "Base Stations: " << *numOfBss_);
 	LOG4CXX_INFO(logger, "Cycle Time: " << *ueCycleTime_);
+	readMsc.AddConfig(numOfUesPerBs_, numOfBss_);
 
 	return true;
 }
@@ -401,7 +402,7 @@ int main (int argc, char** argv)
 
 	log4cxx::BasicConfigurator::configure(log4cxx::AppenderPtr(fileAppender));
 	log4cxx::BasicConfigurator::configure(log4cxx::AppenderPtr(consoleAppender));
-	log4cxx::Logger::getRootLogger()->setLevel(log4cxx::Level::getDebug());
+	log4cxx::Logger::getRootLogger()->setLevel(log4cxx::Level::getInfo());
 	fileAppender->activateOptions(p);
 
 	struct argp_option options[] =

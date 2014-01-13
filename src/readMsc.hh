@@ -50,14 +50,11 @@ public:
 	 * Obtain a copy of a particular communication description struct
 	 * @param useCaseId The use-case ID for which the data should be looked up
 	 * @param step The step within the use-case which should be returned
-	 * @param bsId The identifier of the BS to which the UE is connected to
-	 * @param ueId The identifier of the UE which is sending
-	 * @return Copy of the request communication description with type COMMUNICATION_DESCRIPTION_STRUCT
+	 * @return A copy of the communication description with type COMMUNICATION_DESCRIPTION_STRUCT
 	 */
 	COMMUNICATION_DESCRIPTION_STRUCT GetParticularCommunicationDescription (
 			USE_CASE_ID useCaseId,
 			int step );
-
 	/**
 	 * Translating the network element name (string) into a unique numeric representation using the networkElementMap.
 	 * @param ne The network element which should be translated
@@ -97,6 +94,12 @@ public:
 	 * @param l Pointer to LoggerPtr class
 	 */
 	void InitLog(log4cxx::LoggerPtr l);
+	/**
+	 * This function copies the number of UEs attached to a BS and the number of BSs in the network to the private variables numOfUesPerBs and numOfBss
+	 * @param uesPerBs_ Number of UEs attached to a BS
+	 * @param bss_ The total number of BSs in the network
+	 */
+	void AddConfig(int *uesPerBs_, int *bss_);
 private:
 	/**
 	 * \brief add communication description
@@ -201,4 +204,6 @@ private:
 
 	Dictionary *dictionary_;	/** Pointer to Dictionary class */
 	log4cxx::LoggerPtr logger;	/** Pointer to LoggerPtr class */
+	int *numOfUesPerBs_;			/** Number of UEs attached to each BS */
+	int *numOfBss_;				/** Number of BSs in the network */
 };

@@ -76,7 +76,7 @@ EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,
 		if (comDescrStruct.informationElements.at(i) == "UE_ID")
 			informationElementValueId = ueId;
 		else if (comDescrStruct.informationElements.at(i) == "BS_ID")
-			informationElementValueId = bsId*100; // making BS ID distinguishable to UE ID
+			informationElementValueId = bsId;
 		else
 			informationElementValueId = 999; // dummy value (see to-do above)
 		// Generating the EventID
