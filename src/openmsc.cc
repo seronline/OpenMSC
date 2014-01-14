@@ -41,6 +41,7 @@
 #include "eventIdGenerator.hh"
 #include <boost/asio.hpp>
 #include <libconfig.h++>
+#include <fstream>
 using namespace libconfig;
 
 #if !defined(__SUNPRO_CC) || (__SUNPRO_CC > 0x530)
@@ -68,7 +69,7 @@ using boost::asio::ip::tcp;
 int seed = 1,
 		numOfUesPerBs,
 		numOfBss;
-float ueCycleTime;
+TIME ueCycleTime;
 
 ReadMsc readMsc;
 EventIdGenerator eventIdGenerator;
@@ -77,6 +78,7 @@ IP_ADDRESS ipAddress;
 PORT port;
 bool TCP = false;
 bool UDP = true;
+bool streamToFileFlag = false;
 /// log4cxx
 #include <log4cxx/logger.h>
 #include <log4cxx/helpers/pool.h>
@@ -142,12 +144,17 @@ static int parse_opt (
 		TCP = true;
 		UDP = false;
 		break;
+	case 'f':
+		LOG4CXX_INFO(logger, "Writing Stream to file");
+		streamToFileFlag = true;
+		break;
 	case 'u':
 		LOG4CXX_INFO(logger, "Enabling UDP communication");
 		UDP = true;
 		TCP = false;
 		break;
 	}
+
 	return 0;
 }
 ///
@@ -163,7 +170,8 @@ static int parse_opt (
 void *generateEventIds(void *t)
 {
 	boost::asio::io_service io_service;
-	time_t_timer timer(io_service);
+	//time_t_timer timer(io_service);
+	boost::asio::deadline_timer timer(io_service);
 	base_generator_type generator(seed);
 	boost::uniform_real<> uni_dist_real (0, ueCycleTime);
 	boost::uniform_int<> uni_dist_int (0, ueCycleTime);
@@ -176,7 +184,7 @@ void *generateEventIds(void *t)
 
 	int ueIt,
 		bsIt;
-	float	sTime,
+	TIME	sTime,
 			remainingTime,
 			lastTime;
 	EVENT_TIMER_MAP_IT eMapIt;
@@ -200,40 +208,56 @@ void *generateEventIds(void *t)
 						eventTimerMap.insert(pair <float,BS_UE_PAIR> (sTime, BS_UE_PAIR (bsIt,ueIt)));
 						newTimeFound = true;
 					}
-					//else
-					//	cout << "ERROR! Time " << sTime << " already exists: " << eventTimerMap.at(sTime).first << endl;
 				}
 			}
 		}
 
 		eMapIt = eventTimerMap.begin();	// Initialising iterator
-		lastTime = 0.0;
+		lastTime = 0;
 
+		LOG4CXX_DEBUG(logger, "Starting to generate EventIDs for the next cycle of " << ueCycleTime << " seconds");
 		// Generating EventIDs for each UE communication description
 		while (eMapIt != eventTimerMap.end())
 		{
 			ostringstream convert;
-
-			timer.expires_from_now((*eMapIt).first - lastTime);
+			LOG4CXX_DEBUG(logger, "Waiting " << (*eMapIt).first - lastTime << " seconds");
+			timer.expires_from_now(boost::posix_time::seconds((*eMapIt).first - lastTime));
 			timer.wait();
 			clock_gettime(CLOCK_REALTIME, &ts);
 			// First choose which use-case should be used for this particular UE
 			USE_CASE_ID useCaseId;
 			useCaseId = eventIdGenerator.DetermineUseCaseId();
 			// Now generate the EventIDs for this particular use case
-			for (int i = 0; i < readMsc.GetMscLength(useCaseId); i++)
+			TIME currentTime = ts.tv_nsec, offset = 0;
+
+			for (int readMscIt = 0; readMscIt < readMsc.GetMscLength(useCaseId); readMscIt++)
 			{
 				EVENT_ID_VECTOR eventIdVector;
 				// use-case ID, step, base-station ID, UE ID
-				eventIdVector = eventIdGenerator.GetEventIdForComDescr(useCaseId, i, (*eMapIt).second.first, (*eMapIt).second.second);
-
+				eventIdVector = eventIdGenerator.GetEventIdForComDescr(useCaseId, readMscIt, (*eMapIt).second.first, (*eMapIt).second.second);
+				// iterate over vector (eventIdVector.size() > 1 if there was more than 1 IE in a particular primitive)
 				for (unsigned int i = 0; i < eventIdVector.size(); i++)
 				{
 					EVENT_ID eventId;
+					TIME latency;
 					eventId = eventIdVector.at(i);
+					latency = eventIdGenerator.CalculateLatency(useCaseId, readMscIt);
+					currentTime += latency*1000000;	// converting [ms] to [ns]
 					mut.lock();
-					eventMap.insert(TIME_EVENT_ID_PAIR (ts.tv_nsec, eventId));
+					EVENT_MAP_IT it;
+					it = eventMap.begin();
+					// Finding spare time-slot in eventMap
+					while (it != eventMap.end())
+					{
+						it = eventMap.find(currentTime + offset);
+						offset += 1;	//ns
+					}
+					currentTime += offset;
+					offset = 0;
+					eventMap.insert(TIME_EVENT_ID_PAIR (currentTime, eventId));
 					mut.unlock();
+					LOG4CXX_TRACE (logger, "Adding EventID " << eventId
+							<< " at time " << (int)currentTime << " to eventMap for Step " << readMscIt);
 				}
 			}
 
@@ -243,10 +267,10 @@ void *generateEventIds(void *t)
 			lastTime = (*eMapIt).first;		// keep this time for next timer
 			eventTimerMap.erase(eMapIt);
 			eMapIt = eventTimerMap.begin();	// Re-initialising iterator
-
 		}
 
-		timer.expires_from_now(remainingTime);
+		LOG4CXX_DEBUG(logger, "Waiting " << remainingTime << " seconds before new cycle starts");
+		timer.expires_from_now(boost::posix_time::seconds(remainingTime));
 		timer.wait();
 	}
 
@@ -266,7 +290,7 @@ void *sendStream(void *t)
 	EVENT_MAP eventMapCopy;
 	EVENT_MAP_IT eventMapIt, eventMapCopyIt;
 	timespec ts;
-
+	ofstream file;
 	boost::asio::io_service io_serviceUdp, io_serviceTcp;
 
 	udp::socket udpSocket(io_serviceUdp, udp::endpoint(udp::v4(), 0));
@@ -278,6 +302,13 @@ void *sendStream(void *t)
 	tcp::resolver::query queryTcp(tcp::v4(), ipAddress.c_str(), port.c_str());
 	tcp::resolver::iterator iteratorTcp = resolverTcp.resolve(queryTcp);
 	tcp::socket tcpSocket(io_serviceTcp);
+
+	// Opening stream file if option was selected
+	if (streamToFileFlag)
+	{
+		LOG4CXX_DEBUG(logger, "Opening eventStream.tsv file for writing stream to disk");
+		file.open("eventStream.tsv", ios::trunc);
+	}
 	// Establishing TCP connection
 	try
 	{
@@ -288,6 +319,9 @@ void *sendStream(void *t)
 		if (TCP)
 			LOG4CXX_ERROR(logger, "TCP Exception: " << e.what());
 	}
+
+	LOG4CXX_DEBUG(logger, "Starting to send EventIDs");
+
 	for(;;)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
@@ -299,7 +333,9 @@ void *sendStream(void *t)
 
 			mut.lock();
 			payload = (*eventMapIt).second;
-			LOG4CXX_TRACE(logger,"Deleting " << (*eventMapIt).first << " " << (*eventMapIt).second << " from eventMap with current size " << eventMap.size());
+			if (streamToFileFlag)
+				file << eventMapIt->first << "\t" << payload << endl;
+			LOG4CXX_TRACE(logger, "Sending EventID " << payload << " at time " << (int)eventMapIt->first);
 			eventMap.erase(eventMapIt);
 			mut.unlock();
 			size_t payloadLength = payload.length();
@@ -322,6 +358,8 @@ void *sendStream(void *t)
 			eventMapIt = eventMap.begin();
 		}
 	}
+
+	file.close();
 
 	pthread_exit(NULL);
 }
@@ -411,6 +449,7 @@ int main (int argc, char** argv)
 		{ "UDP", 'u', 0, 0, "Using IPv4 over UDP to communicate with destination module"},
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},
 		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
+		{ 0, 'f', 0, 0, "Write EventIDs to file 'eventStream.tsv'"},
 		{ "debug", 'd', "<LEVEL>", 0, "Debug level (ERROR|INFO|DEBUG|TRACE)" },
 		{ 0 }
 	};
@@ -422,15 +461,18 @@ int main (int argc, char** argv)
 		return 0;
 	}
 
+	LOG4CXX_INFO(logger,"*** OpenMSC Configuration ***");
+
 	if(argp_parse (&argp, argc, argv, 0, 0, 0) != 0)
 		return(EXIT_FAILURE);
 
+	LOG4CXX_INFO(logger,"*****************************");
 	dictionary.Init();	// initialising the dictionaries
 	readMsc.InitLog(logger);
 	dictionary.InitLog(logger);
 	readMsc.EstablishDictConnection(&dictionary);
 
-	if (!readConfiguration(config_file_name,&ueCycleTime, &numOfUesPerBs, &numOfBss))
+	if (!readConfiguration(config_file_name, &ueCycleTime, &numOfUesPerBs, &numOfBss))
 		return(EXIT_FAILURE);
 
 	if (readMsc.ReadMscConfigFile() != 0)

@@ -89,13 +89,17 @@ int ReadMsc::ReadMscConfigFile ()
 		// Get message types and latencies for communications
 		boost::algorithm::split_regex(lineVector1, line, boost::regex ("=>"));
 		boost::algorithm::split_regex(lineVector2, line, boost::regex ("<="));
-
+		if (lineVector2.size() > 1)
+		{
+			LOG4CXX_ERROR (logger, "Wrong communication description in openmsc.msc! OpenMSC only accepts SRC => DST, not DST <= SRC:\n" << line);
+			return(EXIT_FAILURE);
+		}
 		MSC_LINE_VECTOR lineTmp;
 
 		if (lineVector1.size() > 1)
 			lineTmp = lineVector1;
-		else if (lineVector2.size() > 1)
-			lineTmp = lineVector2;
+		//else if (lineVector2.size() > 1)
+		//	lineTmp = lineVector2;
 		else
 			lineTmp.clear();
 
@@ -151,6 +155,7 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 	commDescrStruct.protocolType = protType;
 	commDescrStruct.primitiveName = primName;
 	commDescrStruct.informationElements = infElements;
+	commDescrStruct.latencyDescription = latencyDescription;
 
 	CheckNetworkElementIdentifier(src);
 	CheckNetworkElementIdentifier(dst);
@@ -167,7 +172,7 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		comDescrV.insert(comDescrV.begin(),commDescrStruct);
 		useCaseDescrMap.insert(pair <USE_CASE_ID, COMMUNICATION_DESCRIPTION_VECTOR> (uc, comDescrV));
 		useCaseDescrMapIt = useCaseDescrMap.find(uc);
-		LOG4CXX_INFO(logger, "New use-case map key " << uc << " created");
+		LOG4CXX_DEBUG(logger, "New use-case map key " << uc << " created");
 	}
 	// Add to existing use-case
 	else
@@ -175,7 +180,7 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		useCaseDescrMapIt = useCaseDescrMap.find(uc);
 		// Add new communication description at the end of the vector
 		(*useCaseDescrMapIt).second.insert((*useCaseDescrMapIt).second.end(),commDescrStruct);
-		LOG4CXX_INFO(logger, "Communication description added to existing use-case with ID " << (*useCaseDescrMapIt).first << ":" << (*useCaseDescrMapIt).second.size());
+		LOG4CXX_DEBUG(logger, "Communication description added to existing use-case with ID " << (*useCaseDescrMapIt).first << ", step " << (*useCaseDescrMapIt).second.size());
 	}
 	LOG4CXX_DEBUG(logger, "Communication description:\n\tSource:         " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).source
 			<< "\n\tDestination:    " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).destination
@@ -300,6 +305,13 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 					LOG4CXX_ERROR(logger, "Lambda not provided in openmsc.msc file for exponential distribution: " << lineTmp2.at(1));
 					return false;
 				}
+				// TODO implement proper latency reading
+				(*latencyDescription_).latencyMinimum = 1.0;
+				(*latencyDescription_).latencyMaximum = 1.0;
+				LOG4CXX_TRACE(logger, "Exponential distribution parameters set: "
+						<< "lambda = " << (*latencyDescription_).exponentialLambda
+						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum
+						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum);
 			}
 			else if (lineTmp4.at(0) == "pareto")
 			{
@@ -307,6 +319,12 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 					return false;
 
 				(*latencyDescription_).latencyDistribution = PARETO;
+				// TODO implement proper latency reading
+				(*latencyDescription_).latencyMinimum = 1.0;
+				(*latencyDescription_).latencyMaximum = 1.0;
+				LOG4CXX_TRACE(logger, "Pareto distribution parameters set: "
+						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum
+						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum);
 			}
 			else if (lineTmp4.at(0) == "uniformReal")
 				(*latencyDescription_).latencyDistribution = UNIFORM_REAL;
@@ -314,8 +332,21 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 				(*latencyDescription_).latencyDistribution = UNIFORM_INTEGER;
 			else if (lineTmp4.at(0) == "gaussian")
 				(*latencyDescription_).latencyDistribution = GAUSSIAN;
-			else
+			else if (lineTmp4.at(0) == "linear")
+			{
 				(*latencyDescription_).latencyDistribution = LINEAR;
+				// TODO implement proper latency reading
+				(*latencyDescription_).latencyMinimum = 1.0;
+				(*latencyDescription_).latencyMaximum = 1.0;
+				LOG4CXX_TRACE(logger, "Linear distribution parameters set: "
+						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum
+						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum);
+			}
+			else
+			{
+				LOG4CXX_ERROR(logger, "The specified distribution in openmsc.msc does not exit: " << lineTmp4.at(0));
+				return(EXIT_FAILURE);
+			}
 		}
 	}
 
@@ -385,7 +416,7 @@ void ReadMsc::CheckNetworkElementIdentifier(NETWORK_ELEMENT networkElement)
 				{
 					// only store the largest UE ID
 					networkElementsMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (networkElement,bsIt*100 + ueIt));
-					LOG4CXX_INFO(logger, "New ID: Network Element " << networkElement << " -> " <<  bsIt*100 + ueIt);
+					LOG4CXX_DEBUG(logger, "New ID: Network Element " << networkElement << " -> " <<  bsIt*100 + ueIt);
 					(*dictionary_).WriteNetworkElement(networkElement, bsIt*100 + ueIt);
 				}
 			}
@@ -396,7 +427,7 @@ void ReadMsc::CheckNetworkElementIdentifier(NETWORK_ELEMENT networkElement)
 			{
 				// only store the largest BS ID
 				networkElementsMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (networkElement,bsIt*100));
-				LOG4CXX_INFO(logger, "New ID: Network Element " << networkElement << " -> " <<  bsIt*100);
+				LOG4CXX_DEBUG(logger, "New ID: Network Element " << networkElement << " -> " <<  bsIt*100);
 				(*dictionary_).WriteNetworkElement(networkElement, bsIt*100);
 			}
 		}
@@ -404,7 +435,7 @@ void ReadMsc::CheckNetworkElementIdentifier(NETWORK_ELEMENT networkElement)
 		{
 			networkElementsCounter++;
 			networkElementsMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (networkElement,networkElementsCounter));
-			LOG4CXX_INFO(logger, "New ID: Network Element " << networkElement << " -> " << networkElementsCounter);
+			LOG4CXX_DEBUG(logger, "New ID: Network Element " << networkElement << " -> " << networkElementsCounter);
 			(*dictionary_).WriteNetworkElement(networkElement, networkElementsCounter);
 			//TODO add MySQL entry
 		}

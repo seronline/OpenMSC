@@ -86,9 +86,20 @@ EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,
 				<< setw(2) << primitiveNameId
 				<< setw(2) << informationElementId
 				<< setw(3) << informationElementValueId;
-		LOG4CXX_DEBUG(logger, "Generated EventID = " << convert.str());;
 		eIdV.insert(eIdV.end(),convert.str());
 	}
 
 	return eIdV;
 }
+LATENCY EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step)
+{
+	COMMUNICATION_DESCRIPTION_STRUCT comDescrStruct;
+	comDescrStruct = (*readMsc_).GetParticularCommunicationDescription(ucId, step);
+
+	return comDescrStruct.latencyDescription.latencyMinimum; // dummy latency of 1ms
+}
+
+
+
+
+

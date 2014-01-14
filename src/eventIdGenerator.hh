@@ -51,9 +51,11 @@ public:
 			BS_ID bsId,
 			UE_ID ueId );
 	/**
-	 * @param comDescrStruct
+	 * @param ucId The use-case ID
+	 * @param step The communication description steps within this use-case
+	 * @return The latency with which the message arrive at the destination
 	 */
-	LATENCY CalculateLatency(COMMUNICATION_DESCRIPTION_STRUCT comDescrStruct);
+	LATENCY CalculateLatency(USE_CASE_ID ucId, int step);
 	/**
 	 * Initialising logging in ReadMsc class
 	 * @param l Pointer to LoggerPtr class
