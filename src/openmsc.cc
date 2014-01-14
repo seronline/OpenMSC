@@ -334,7 +334,7 @@ void *sendStream(void *t)
 			mut.lock();
 			payload = (*eventMapIt).second;
 			if (streamToFileFlag)
-				file << eventMapIt->first << "\t" << payload << endl;
+				file << (int)eventMapIt->first << "\t" << payload << endl;
 			LOG4CXX_TRACE(logger, "Sending EventID " << payload << " at time " << (int)eventMapIt->first);
 			eventMap.erase(eventMapIt);
 			mut.unlock();
