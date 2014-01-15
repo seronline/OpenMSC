@@ -390,9 +390,15 @@ bool readConfiguration(char *configFileName_,
 		LOG4CXX_ERROR(logger,"I/O error while reading file. " << configFileName_);
 		return false;
 	}
-	catch(const ParseException &pex)
+	// Libconfig => 9
+	/*catch(const ParseException &pex)
 	{
 		LOG4CXX_ERROR(logger,"Parse error at " << configFileName_ << ":" << pex.getLine() << " - " << pex.getError());
+		return false;
+	}*/
+	catch(const ParseException &pex)
+	{
+		LOG4CXX_ERROR(logger,"Parse error in file " << configFileName_);
 		return false;
 	}
 
