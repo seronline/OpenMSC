@@ -26,6 +26,7 @@
 #include <string>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/asio.hpp>
+#include <boost/asio/time_traits.hpp>
 #include <boost/random/linear_congruential.hpp>
 #include "enum.hh"
 
@@ -360,88 +361,4 @@ typedef boost::minstd_rand base_generator_type;
  * \struct time_t_traits
  * \brief Helper struct for boost::time
  */
-struct time_t_traits
-{
-	/**
-	 * \typedef time_type
-	 * The time type
-	 */
-	typedef time_t time_type;
-
-	/**
-	 * \struct duration_type
-	 * The duration type
-	 */
-	struct duration_type
-	{
-		duration_type() : value(0) {}
-		duration_type(time_t v) : value(v) {}
-		time_t value;	/** < value of type time_t*/
-	};
-
-	/**
-	 *  Get the current time.
-	 *
-	 *  @return time(0)
-	 */
-	static time_type now()
-	{
-		return time(0);
-	}
-
-	/**
-	 * Add a duration to a time.
-	 *
-	 * @param t const time_type&
-	 * @param d duration_type&
-	 * @return t + d.value
-	 */
-	static time_type add(	const time_type& t,
-							const duration_type& d)
-	{
-		return t + d.value;
-	}
-
-	/**
-	 * Subtract one time from another.
-	 *
-	 * @param t1 const time_type&
-	 * @param t2 const time_type&
-	 * @return duration_type(t1 - t2)
-	 */
-	static duration_type subtract(	const time_type& t1,
-									const time_type& t2)
-	{
-		return duration_type(t1 - t2);
-	}
-
-	/**
-	 * Test whether one time is less than another.
-	 *
-	 * @param t1 time_type&
-	 * @param t2 time_type&
-	 * @return t1 < t2
-	 */
-	static bool less_than(	const time_type& t1,
-							const time_type& t2)
-	{
-		return t1 < t2;
-	}
-
-	/**
-	 * Convert to POSIX duration type.
-	 *
-	 * @param d const duration_type&
-	 * @return boost::posix_time::seconds(d.value)
-	 */
-	static boost::posix_time::time_duration to_posix_duration(const duration_type& d)
-	{
-		return boost::posix_time::seconds(d.value);
-	}
-};
-
-/**
- * \typedef time_t_timer
- * \brief Required for boost::asio
- */
-typedef boost::asio::basic_deadline_timer <time_t, time_t_traits> time_t_timer;
+typedef boost::asio::time_traits<boost::posix_time::ptime> time_traits_t;

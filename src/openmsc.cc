@@ -42,6 +42,13 @@
 #include <boost/asio.hpp>
 #include <libconfig.h++>
 #include <fstream>
+#include <log4cxx/logger.h>
+#include <log4cxx/helpers/pool.h>
+#include <log4cxx/basicconfigurator.h>
+#include <log4cxx/fileappender.h>
+#include <log4cxx/simplelayout.h>
+#include "log4cxx/consoleappender.h"
+
 using namespace libconfig;
 
 #if !defined(__SUNPRO_CC) || (__SUNPRO_CC > 0x530)
@@ -57,20 +64,14 @@ namespace std {
 boost::shared_mutex _access;
 boost::condition_variable cond;
 boost::mutex mut;
-EVENT_MAP eventMap;
-EVENT_TIMER_MAP eventTimerMap;
 using boost::asio::ip::udp;
 using boost::asio::ip::tcp;
-/**
- * \var seed
- * \brief seed
- *
- */
 int seed = 1,
 		numOfUesPerBs,
 		numOfBss;
 TIME ueCycleTime;
-
+EVENT_MAP eventMap;
+EVENT_TIMER_MAP eventTimerMap;
 ReadMsc readMsc;
 EventIdGenerator eventIdGenerator;
 Dictionary dictionary;
@@ -79,20 +80,12 @@ PORT port;
 bool TCP = false;
 bool UDP = true;
 bool streamToFileFlag = false;
-/// log4cxx
-#include <log4cxx/logger.h>
-#include <log4cxx/helpers/pool.h>
-#include <log4cxx/basicconfigurator.h>
-#include <log4cxx/fileappender.h>
-#include <log4cxx/simplelayout.h>
-#include "log4cxx/consoleappender.h"
-
+// log4cxx
 log4cxx::FileAppender * fileAppender = new log4cxx::FileAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()), "openmsc.log", false);
 log4cxx::ConsoleAppender * consoleAppender = new log4cxx::ConsoleAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()));
 log4cxx::helpers::Pool p;
 log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("logger");
-///
-/// ARGP
+// ARGP
 const char *argp_program_bug_address = "Sebastian Robitzsch <srobitzsch@gmail.com>";
 const char *argp_program_version = "OpenMSC Version 0.1";
 /* Program documentation. */
@@ -205,7 +198,7 @@ void *generateEventIds(void *t)
 
 					if (eventTimerMap.find(sTime) == eventTimerMap.end())
 					{
-						eventTimerMap.insert(pair <float,BS_UE_PAIR> (sTime, BS_UE_PAIR (bsIt,ueIt)));
+						eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (sTime, BS_UE_PAIR (bsIt,ueIt)));
 						newTimeFound = true;
 					}
 				}
@@ -221,7 +214,7 @@ void *generateEventIds(void *t)
 		{
 			ostringstream convert;
 			LOG4CXX_DEBUG(logger, "Waiting " << (*eMapIt).first - lastTime << " seconds");
-			timer.expires_from_now(boost::posix_time::seconds((*eMapIt).first - lastTime));
+			timer.expires_from_now(boost::posix_time::microseconds(((*eMapIt).first - lastTime) * 1000000));
 			timer.wait();
 			clock_gettime(CLOCK_REALTIME, &ts);
 			// First choose which use-case should be used for this particular UE
@@ -270,7 +263,7 @@ void *generateEventIds(void *t)
 		}
 
 		LOG4CXX_DEBUG(logger, "Waiting " << remainingTime << " seconds before new cycle starts");
-		timer.expires_from_now(boost::posix_time::seconds(remainingTime));
+		timer.expires_from_now(boost::posix_time::microseconds(remainingTime * 1000000));
 		timer.wait();
 	}
 
