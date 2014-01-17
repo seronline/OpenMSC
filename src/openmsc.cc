@@ -208,7 +208,7 @@ void *generateEventIds(void *t)
 
 		eMapIt = eventTimerMap.begin();
 		lastTime = TIME(0, "millisec");
-		LOG4CXX_DEBUG(logger, "Starting to generate EventIDs for the next cycle of " << setprecision(PRECISION) << ueCycleTime.sec() << " seconds");
+		LOG4CXX_INFO(logger, "Starting to generate EventIDs for the next cycle of " << setprecision(PRECISION) << ueCycleTime.sec() << " seconds");
 		clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolut reference
 		TIME tvNsec(ts.tv_nsec, "nanosec");
 		TIME tvSec(ts.tv_sec, "sec");
@@ -274,7 +274,11 @@ void *generateEventIds(void *t)
 				if ((cycleStartTime.sec() + ueCycleTime.sec()) > currentTime.sec())
 					remainingWaitingTime = TIME(cycleStartTime.sec() + ueCycleTime.sec() - currentTime.sec (), "sec");
 				else
-					LOG4CXX_WARN(logger, "The EventID generation took longer than the cycle allowed");
+				{
+					LOG4CXX_WARN(logger, "The EventID generation took "
+							<< currentTime.sec() - cycleStartTime.sec() - ueCycleTime.sec() << "s longer than the cycle was supposed to run");
+					remainingWaitingTime = TIME(0,"sec");
+				}
 			}
 			eventTimerMap.erase(eMapIt);
 			eMapIt = eventTimerMap.begin();	// Re-initialising iterator
