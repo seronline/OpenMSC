@@ -91,12 +91,12 @@ EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,
 
 	return eIdV;
 }
-LATENCY EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step)
+TIME EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step)
 {
 	COMMUNICATION_DESCRIPTION_STRUCT comDescrStruct;
 	comDescrStruct = (*readMsc_).GetParticularCommunicationDescription(ucId, step);
 
-	return comDescrStruct.latencyDescription.latencyMinimum; // dummy latency of 1ms
+	return comDescrStruct.latencyDescription.latencyMinimum;
 }
 
 

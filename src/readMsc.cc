@@ -182,7 +182,7 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		(*useCaseDescrMapIt).second.insert((*useCaseDescrMapIt).second.end(),commDescrStruct);
 		LOG4CXX_DEBUG(logger, "Communication description added to existing use-case with ID " << (*useCaseDescrMapIt).first << ", step " << (*useCaseDescrMapIt).second.size());
 	}
-	LOG4CXX_DEBUG(logger, "Communication description:\n\tSource:         " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).source
+	LOG4CXX_TRACE(logger, "Communication description:\n\tSource:         " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).source
 			<< "\n\tDestination:    " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).destination
 			<< "\n\tProtocol Type:  " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).protocolType
 			<< "\n\tPrimitive Name: " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).primitiveName
@@ -306,12 +306,12 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 					return false;
 				}
 				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = 1.0;
-				(*latencyDescription_).latencyMaximum = 1.0;
+				(*latencyDescription_).latencyMinimum = TIME(1.0, "sec");
+				(*latencyDescription_).latencyMaximum = TIME(1.0, "sec");
 				LOG4CXX_TRACE(logger, "Exponential distribution parameters set: "
 						<< "lambda = " << (*latencyDescription_).exponentialLambda
-						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum
-						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum);
+						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
+						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
 			}
 			else if (lineTmp4.at(0) == "pareto")
 			{
@@ -320,11 +320,11 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 
 				(*latencyDescription_).latencyDistribution = PARETO;
 				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = 1.0;
-				(*latencyDescription_).latencyMaximum = 1.0;
+				(*latencyDescription_).latencyMinimum = TIME(1.0, "sec");
+				(*latencyDescription_).latencyMaximum = TIME(1.0, "sec");
 				LOG4CXX_TRACE(logger, "Pareto distribution parameters set: "
-						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum
-						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum);
+						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
+						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
 			}
 			else if (lineTmp4.at(0) == "uniformReal")
 				(*latencyDescription_).latencyDistribution = UNIFORM_REAL;
@@ -336,11 +336,11 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 			{
 				(*latencyDescription_).latencyDistribution = LINEAR;
 				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = 1.0;
-				(*latencyDescription_).latencyMaximum = 1.0;
+				(*latencyDescription_).latencyMinimum = TIME(1.0, "sec");
+				(*latencyDescription_).latencyMaximum = TIME(1.0, "sec");
 				LOG4CXX_TRACE(logger, "Linear distribution parameters set: "
-						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum
-						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum);
+						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
+						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
 			}
 			else
 			{

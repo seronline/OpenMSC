@@ -69,7 +69,7 @@ using boost::asio::ip::tcp;
 int seed = 1,
 		numOfUesPerBs,
 		numOfBss;
-TIME ueCycleTime;
+TIME ueCycleTime = TIME(0, "nanosec");
 EVENT_MAP eventMap;
 EVENT_TIMER_MAP eventTimerMap;
 ReadMsc readMsc;
@@ -85,6 +85,7 @@ log4cxx::FileAppender * fileAppender = new log4cxx::FileAppender(log4cxx::Layout
 log4cxx::ConsoleAppender * consoleAppender = new log4cxx::ConsoleAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()));
 log4cxx::helpers::Pool p;
 log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("logger");
+
 // ARGP
 const char *argp_program_bug_address = "Sebastian Robitzsch <srobitzsch@gmail.com>";
 const char *argp_program_version = "OpenMSC Version 0.1";
@@ -166,8 +167,8 @@ void *generateEventIds(void *t)
 	//time_t_timer timer(io_service);
 	boost::asio::deadline_timer timer(io_service);
 	base_generator_type generator(seed);
-	boost::uniform_real<> uni_dist_real (0, ueCycleTime);
-	boost::uniform_int<> uni_dist_int (0, ueCycleTime);
+	boost::uniform_real<> uni_dist_real (0, ueCycleTime.sec());
+	boost::uniform_int<> uni_dist_int (0, ueCycleTime.sec());
 	boost::exponential_distribution<> exp_dist (4);
 	boost::bernoulli_distribution<> bernoulli_dist (0.5);
 	boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
@@ -177,9 +178,7 @@ void *generateEventIds(void *t)
 
 	int ueIt,
 		bsIt;
-	TIME	sTime,
-			remainingTime,
-			lastTime;
+	TIME	remainingWaitingTime,lastTime, sTime;
 	EVENT_TIMER_MAP_IT eMapIt;
 	timespec ts;
 
@@ -194,34 +193,42 @@ void *generateEventIds(void *t)
 
 				while (newTimeFound == false)
 				{
-					sTime = uni_real();
+					sTime = TIME(uni_real(), "sec"); // uni_real() creates seconds
 
-					if (eventTimerMap.find(sTime) == eventTimerMap.end())
+					if (eventTimerMap.find(TIME(sTime.millisec(), "millisec")) == eventTimerMap.end())
 					{
-						eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (sTime, BS_UE_PAIR (bsIt,ueIt)));
+						LOG4CXX_DEBUG(logger, "Relative starting time for communication description UE " << ueIt
+								<< " -> BS " << bsIt << " = " << sTime.sec());
+						eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (TIME(sTime.millisec(), "millisec"), BS_UE_PAIR (bsIt,ueIt)));
 						newTimeFound = true;
 					}
 				}
 			}
 		}
 
-		eMapIt = eventTimerMap.begin();	// Initialising iterator
-		lastTime = 0;
-
-		LOG4CXX_DEBUG(logger, "Starting to generate EventIDs for the next cycle of " << ueCycleTime << " seconds");
+		eMapIt = eventTimerMap.begin();
+		lastTime = TIME(0, "millisec");
+		LOG4CXX_DEBUG(logger, "Starting to generate EventIDs for the next cycle of " << setprecision(PRECISION) << ueCycleTime.sec() << " seconds");
+		clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolut reference
+		TIME tvNsec(ts.tv_nsec, "nanosec");
+		TIME tvSec(ts.tv_sec, "sec");
+		double s = tvSec.sec() + tvNsec.sec();
+		TIME cycleStartTime(s, "sec");
 		// Generating EventIDs for each UE communication description
 		while (eMapIt != eventTimerMap.end())
 		{
 			ostringstream convert;
-			LOG4CXX_DEBUG(logger, "Waiting " << (*eMapIt).first - lastTime << " seconds");
-			timer.expires_from_now(boost::posix_time::microseconds(((*eMapIt).first - lastTime) * 1000000));
+			LOG4CXX_DEBUG(logger, "Waiting " << setprecision(PRECISION) << (*eMapIt).first.sec() - lastTime.sec() << " seconds");
+			timer.expires_from_now(boost::posix_time::microseconds(((*eMapIt).first.microsec() - lastTime.microsec())));
 			timer.wait();
-			clock_gettime(CLOCK_REALTIME, &ts);
+			lastTime = TIME((*eMapIt).first.sec(), "sec");		// keep this time for next timer
+
 			// First choose which use-case should be used for this particular UE
 			USE_CASE_ID useCaseId;
 			useCaseId = eventIdGenerator.DetermineUseCaseId();
 			// Now generate the EventIDs for this particular use case
-			TIME currentTime = ts.tv_nsec, offset = 0;
+			double offset = 0.0;
+			double startingTimeForThisComDescr = cycleStartTime.sec() + (*eMapIt).first.sec();
 
 			for (int readMscIt = 0; readMscIt < readMsc.GetMscLength(useCaseId); readMscIt++)
 			{
@@ -235,35 +242,46 @@ void *generateEventIds(void *t)
 					TIME latency;
 					eventId = eventIdVector.at(i);
 					latency = eventIdGenerator.CalculateLatency(useCaseId, readMscIt);
-					currentTime += latency*1000000;	// converting [ms] to [ns]
+					startingTimeForThisComDescr += latency.sec(); // Bear in mind that the latency calc is still a dummy
 					mut.lock();
 					EVENT_MAP_IT it;
 					it = eventMap.begin();
 					// Finding spare time-slot in eventMap
 					while (it != eventMap.end())
 					{
-						it = eventMap.find(currentTime + offset);
-						offset += 1;	//ns
+						it = eventMap.find(TIME(startingTimeForThisComDescr + offset, "sec"));
+						offset += 0.01;	//s
 					}
-					currentTime += offset;
+					startingTimeForThisComDescr += offset;
 					offset = 0;
-					eventMap.insert(TIME_EVENT_ID_PAIR (currentTime, eventId));
+					eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr, "sec"), eventId));
 					mut.unlock();
 					LOG4CXX_TRACE (logger, "Adding EventID " << eventId
-							<< " at time " << (int)currentTime << " to eventMap for Step " << readMscIt);
+							<< " at relative time " << setprecision(20) << startingTimeForThisComDescr - cycleStartTime.sec()
+							<< " to eventMap for communication descriptor " << readMscIt+1);
 				}
 			}
-
+			// Calculating the remaining time for this cycle if there's no communication description left to be generated
+			// Note, this is a check if the cycle calculation took longer than the cycle. If so, an ERROR is thrown
 			if (eventTimerMap.size() == 1)
-				remainingTime = ueCycleTime - (*eMapIt).first;
-
-			lastTime = (*eMapIt).first;		// keep this time for next timer
+			{
+				clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolut reference
+				TIME tvNsec(ts.tv_nsec, "nanosec");
+				TIME tvSec(ts.tv_sec, "sec");
+				double s = tvSec.sec() + tvNsec.sec();
+				TIME currentTime(s, "sec");
+				// Everything's ok
+				if ((cycleStartTime.sec() + ueCycleTime.sec()) > currentTime.sec())
+					remainingWaitingTime = TIME(cycleStartTime.sec() + ueCycleTime.sec() - currentTime.sec (), "sec");
+				else
+					LOG4CXX_WARN(logger, "The EventID generation took longer than the cycle allowed");
+			}
 			eventTimerMap.erase(eMapIt);
 			eMapIt = eventTimerMap.begin();	// Re-initialising iterator
 		}
 
-		LOG4CXX_DEBUG(logger, "Waiting " << remainingTime << " seconds before new cycle starts");
-		timer.expires_from_now(boost::posix_time::microseconds(remainingTime * 1000000));
+		LOG4CXX_DEBUG(logger, "Waiting " << setprecision(PRECISION) << remainingWaitingTime.sec() << " seconds before new cycle starts");
+		timer.expires_from_now(boost::posix_time::microseconds(remainingWaitingTime.microsec()));
 		timer.wait();
 	}
 
@@ -314,21 +332,30 @@ void *sendStream(void *t)
 	}
 
 	LOG4CXX_DEBUG(logger, "Starting to send EventIDs");
+	clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolut reference
+	TIME tvNsec(ts.tv_nsec, "nanosec");
+	TIME tvSec(ts.tv_sec, "sec");
+	double s = tvSec.sec() + tvNsec.sec();
+	TIME emulationStartTime(s, "sec");
 
 	for(;;)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
+		TIME tvNsec(ts.tv_nsec, "nanosec");
+		TIME tvSec(ts.tv_sec, "sec");
+		double s = tvSec.sec() + tvNsec.sec();
+		TIME currentTime(s, "sec");
 		eventMapIt = eventMap.begin();
 
-		while (eventMapIt != eventMap.end() && eventMapIt->first < ts.tv_nsec)
+		while (eventMapIt != eventMap.end() && eventMapIt->first.sec() < currentTime.sec())
 		{
 			string payload;
 
 			mut.lock();
 			payload = (*eventMapIt).second;
 			if (streamToFileFlag)
-				file << (int)eventMapIt->first << "\t" << payload << endl;
-			LOG4CXX_TRACE(logger, "Sending EventID " << payload << " at time " << (int)eventMapIt->first);
+				file << setprecision(PRECISION) << currentTime.sec() - emulationStartTime.sec() << "\t" << payload << endl;
+			LOG4CXX_TRACE(logger, "Sending EventID " << payload);
 			eventMap.erase(eventMapIt);
 			mut.unlock();
 			size_t payloadLength = payload.length();
@@ -400,20 +427,22 @@ bool readConfiguration(char *configFileName_,
 	// Output a list of all books in the inventory.
 	try
 	{
+		float cT;
 		LOG4CXX_INFO(logger,"Reading libconfig configuration file " << configFileName_);
 		const Setting &openmscConfig = root["openmscConfig"];
 		openmscConfig.lookupValue("numOfUesPerBs", *numOfUesPerBs_);
 		openmscConfig.lookupValue("numOfBss", *numOfBss_);
-		openmscConfig.lookupValue("cycleTime", *ueCycleTime_);
+		openmscConfig.lookupValue("cycleTime", cT);
+		(*ueCycleTime_) = TIME(cT,"sec");
 	}
 	catch(const SettingNotFoundException &nfex)
 	{
 		// Ignore.
-		return(EXIT_FAILURE);
+		return false;
 	}
-	LOG4CXX_INFO(logger, "UEs per BS: " << *numOfUesPerBs_);
-	LOG4CXX_INFO(logger, "Base Stations: " << *numOfBss_);
-	LOG4CXX_INFO(logger, "Cycle Time: " << *ueCycleTime_);
+	LOG4CXX_DEBUG(logger, "UEs per BS: " << *numOfUesPerBs_);
+	LOG4CXX_DEBUG(logger, "Base Stations: " << *numOfBss_);
+	LOG4CXX_DEBUG(logger, "Cycle Time: " << setprecision(PRECISION) << (*ueCycleTime_).sec());
 	readMsc.AddConfig(numOfUesPerBs_, numOfBss_);
 
 	return true;

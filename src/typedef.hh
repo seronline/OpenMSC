@@ -29,6 +29,7 @@
 #include <boost/asio/time_traits.hpp>
 #include <boost/random/linear_congruential.hpp>
 #include "enum.hh"
+#include "time.hh"
 
 using namespace std;
 
@@ -141,7 +142,7 @@ typedef float PROBABILITY;
  * \typedef TIME
  * \brief Numeric (float) representation of a time
  */
-typedef float TIME;
+//typedef float TIME;
 
 /**
  * \typedef LATENCY
@@ -209,9 +210,9 @@ typedef float EXPONENTIAL_LAMBDA;
  */
 typedef struct latencyDescription {
 	LATENCY_DISTRIBUTION latencyDistribution;
-	LATENCY_AVERAGE latencyAverage;					/** Average latency of the communication between source and destination */
-	LATENCY_MINIMUM latencyMinimum;
-	LATENCY_MAXIMUM latencyMaximum;
+	TIME latencyAverage;					/** Average latency of the communication between source and destination */
+	TIME latencyMinimum;
+	TIME latencyMaximum;
 	PARETO_REAL paretoReal;
 	PARETO_LOCATION paretoLocation;
 	EXPONENTIAL_LAMBDA exponentialLambda;
@@ -362,3 +363,5 @@ typedef boost::minstd_rand base_generator_type;
  * \brief Helper struct for boost::time
  */
 typedef boost::asio::time_traits<boost::posix_time::ptime> time_traits_t;
+
+#define PRECISION 5

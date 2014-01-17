@@ -23,6 +23,10 @@
 
 #include "readMsc.hh"
 
+/**
+ * \class EventIdGenerator
+ * This class generates EventIDs based on the MSC.
+ */
 class EventIdGenerator {
 public:
 	/**
@@ -55,7 +59,7 @@ public:
 	 * @param step The communication description steps within this use-case
 	 * @return The latency with which the message arrive at the destination
 	 */
-	LATENCY CalculateLatency(USE_CASE_ID ucId, int step);
+	TIME CalculateLatency(USE_CASE_ID ucId, int step);
 	/**
 	 * Initialising logging in ReadMsc class
 	 * @param l Pointer to LoggerPtr class
