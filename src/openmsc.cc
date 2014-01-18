@@ -173,15 +173,14 @@ void *generateEventIds(void *t)
 		bsIt;
 	TIME	remainingWaitingTime,
 	lastTime,
-	sTime,
-	adjustCycleTime = TIME(0, "sec");
+	sTime;
 	EVENT_TIMER_MAP_IT eMapIt;
 	timespec ts;
 
 	for (;;)
 	{
-		boost::uniform_real<> uni_dist_real (0, ueCycleTime.sec() - adjustCycleTime.sec());
-		boost::uniform_int<> uni_dist_int (0, ueCycleTime.sec() - adjustCycleTime.sec());
+		boost::uniform_real<> uni_dist_real (0, ueCycleTime.sec());
+		boost::uniform_int<> uni_dist_int (0, ueCycleTime.sec());
 		boost::exponential_distribution<> exp_dist (4);
 		boost::bernoulli_distribution<> bernoulli_dist (0.5);
 		boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
@@ -222,11 +221,6 @@ void *generateEventIds(void *t)
 		while (eMapIt != eventTimerMap.end())
 		{
 			ostringstream convert;
-			LOG4CXX_DEBUG(logger, "Waiting " << setprecision(PRECISION) << (*eMapIt).first.sec() - lastTime.sec() << " seconds");
-			timer.expires_from_now(boost::posix_time::microseconds(((*eMapIt).first.microsec() - lastTime.microsec())));
-			timer.wait();
-			lastTime = TIME((*eMapIt).first.sec(), "sec");		// keep this time for next timer
-
 			// First choose which use-case should be used for this particular UE
 			USE_CASE_ID useCaseId;
 			useCaseId = eventIdGenerator.DetermineUseCaseId();
@@ -269,7 +263,7 @@ void *generateEventIds(void *t)
 			// Note, this is a check if the cycle calculation took longer than the cycle. If so, an ERROR is thrown
 			if (eventTimerMap.size() == 1)
 			{
-				clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolut reference
+				clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolute reference
 				TIME tvNsec(ts.tv_nsec, "nanosec");
 				TIME tvSec(ts.tv_sec, "sec");
 				double s = tvSec.sec() + tvNsec.sec();
@@ -280,14 +274,12 @@ void *generateEventIds(void *t)
 				else
 				{
 					remainingWaitingTime = TIME(0,"sec");
-					adjustCycleTime = TIME(adjustCycleTime.sec() + currentTime.sec() - cycleStartTime.sec() - ueCycleTime.sec(), "sec");
 					LOG4CXX_WARN(logger, "The EventID generation took "
 												<< currentTime.sec() - cycleStartTime.sec() - ueCycleTime.sec()
-												<< "s longer than the cycle was supposed to run. Adjusting UE starting time window to {0,"
-												<< ueCycleTime.sec() - adjustCycleTime.sec()
-												<< "}");
-					if (ueCycleTime.sec() < adjustCycleTime.sec())
-						LOG4CXX_ERROR(logger, "Cycle time is smaller than the required time to adjust the over-run time. To avoid this problem, increase the cycle time in openmsc.cfg");
+												<< "s longer than the cycle was supposed to run. Cycle time is going to be adjusted to "
+												<< currentTime.sec() - cycleStartTime.sec()
+												<< "s");
+					ueCycleTime = TIME(currentTime.sec() - cycleStartTime.sec(), "sec");
 				}
 			}
 			eventTimerMap.erase(eMapIt);
