@@ -180,20 +180,19 @@ typedef vector <INFORMATION_ELEMENT> INFORMATION_ELEMENT_VECTOR;
 typedef int DISTRIBUTION;
 
 /**
- * \typedef PARETO_REAL
- * \brief Floating point representation of the 'real' parameter for boost::pareto
+ * \typedef PARETO_SCALE
+ * \brief Floating point representation of the 'scale' parameter for boost::pareto
  *
  * More information can be found here: http://www.boost.org/doc/libs/1_54_0/libs/math/doc/html/math_toolkit/dist_ref/dists/pareto.html
  */
-typedef float PARETO_REAL;
+typedef float PARETO_SCALE;
 /**
- * \typedef PARETO_LOCATION
- * \brief Floating point representation of the 'location' parameter for boost::pareto
+ * \typedef PARETO_SHAPE
+ * \brief Floating point representation of the 'shape' parameter for boost::pareto
  *
  * More information can be found here: http://www.boost.org/doc/libs/1_54_0/libs/math/doc/html/math_toolkit/dist_ref/dists/pareto.html
  */
-typedef float PARETO_LOCATION;
-
+typedef float PARETO_SHAPE;
 /**
  * \typedef EXPONENTIAL_LAMBDA
  * \brief Floating point representation of the 'location' parameter for boost::exponential
@@ -209,6 +208,20 @@ typedef float EXPONENTIAL_LAMBDA;
  */
 typedef float EXPONENTIAL_MODE;
 /**
+ * \typedef GAUSSIAN_MEAN
+ * \brief Floating point representation of the 'mean' parameter for boost::normal
+ *
+ * More information can be found here: http://www.boost.org/doc/libs/1_54_0/libs/math/doc/html/math_toolkit/dist_ref/dists/normal_dist.html
+ */
+typedef float GAUSSIAN_MEAN;
+/**
+ * \typedef GAUSSIAN_SIGMA
+ * \brief Floating point representation of the 'sd' parameter for boost::normal
+ *
+ * More information can be found here: http://www.boost.org/doc/libs/1_54_0/libs/math/doc/html/math_toolkit/dist_ref/dists/normal_dist.html
+ */
+typedef float GAUSSIAN_SIGMA;
+/**
  * \typedef LATENCY_DESCRIPTION_STRUCT
  * \brief Struct describing the communication latency between two network elements.
  *
@@ -221,10 +234,11 @@ typedef struct distributionDefinition {
 	TIME latencyMaximum;
 	TIME uniformMin;						/** Start time for the uniform distribution */
 	TIME uniformMax;						/** Stop time for the uniform distribution */
-	PARETO_REAL paretoReal;
-	PARETO_LOCATION paretoLocation;
+	PARETO_SCALE paretoScale;				/** scale pareto parameter in seconds */
+	PARETO_SHAPE paretoShape;				/** shape pareto parameter (probability) */
 	EXPONENTIAL_LAMBDA exponentialLambda;	/** lambda parameter for exponential distribution */
-	EXPONENTIAL_MODE exponentialMode;		/** mode of exponential distribution */
+	GAUSSIAN_MEAN gaussianMean;				/** mean parameter [s] for gaussian distribution */
+	GAUSSIAN_SIGMA gaussianSigma;					/** standard deviation [s] for gaussian distribution */
 } DISTRIBUTION_DEFINITION_STRUCT;
 
 /**

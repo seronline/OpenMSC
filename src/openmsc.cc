@@ -36,7 +36,7 @@
 #include <boost/random/uniform_real.hpp>
 #include <boost/random/variate_generator.hpp>
 #include <boost/random/exponential_distribution.hpp>
-#include <boost/random/bernoulli_distribution.hpp>
+#include <boost/random/normal_distribution.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include "eventIdGenerator.hh"
 #include <boost/asio.hpp>
@@ -208,13 +208,30 @@ void *generateEventIds(void *t)
 					{
 						boost::exponential_distribution<> exp_dist (ueDistDef.exponentialLambda);
 						boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
-						sTime = TIME(exponential() + ueDistDef.exponentialMode, "sec");
+						sTime = TIME(exponential(), "sec");
 					}
-					// TODO implementing remaining distributions
-					if (eventTimerMap.find(TIME(sTime.millisec(), "sec")) == eventTimerMap.end())
+					else if (ueDistDef.distribution == PARETO)
 					{
-						LOG4CXX_DEBUG(logger, "Inital starting time for UE " << ue
-								<< " -> BS " << bs << " = " << std::setprecision(20) << (sTime.sec() + currentTime.sec()));
+						boost::exponential_distribution<> exp_dist (ueDistDef.paretoShape);
+						boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
+						sTime = TIME(exponential() + ueDistDef.paretoScale, "sec");
+					}
+					else if (ueDistDef.distribution == GAUSSIAN)
+					{
+						boost::normal_distribution<> gau_dist (ueDistDef.gaussianMean, ueDistDef.gaussianSigma);
+						boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
+						sTime = TIME(gaussian(), "sec");
+					}
+					else
+					{
+						LOG4CXX_ERROR(logger, "This distribution has not been implemented to calculate UE arrival times");
+						pthread_exit(NULL);
+					}
+					if (eventTimerMap.find(TIME(sTime.sec(), "sec")) == eventTimerMap.end())
+					{
+						LOG4CXX_DEBUG(logger, "Initial starting time for UE " << ue
+								<< " -> BS " << bs << " = " << std::setprecision(20) << (sTime.sec() + currentTime.sec())
+								<< " using distribution " << ueDistDef.distribution);
 						eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (TIME(sTime.sec() + currentTime.sec(), "sec"), BS_UE_PAIR (bs,ue)));
 						newTimeFound = true;
 					}
@@ -305,14 +322,26 @@ void *generateEventIds(void *t)
 				{
 					boost::exponential_distribution<> exp_dist (ueDistDef.exponentialLambda);
 					boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
-					sTime = TIME(exponential() + ueDistDef.exponentialMode, "sec");
+					sTime = TIME(exponential(), "sec");
+				}
+				else if (ueDistDef.distribution == PARETO)
+				{
+					boost::exponential_distribution<> exp_dist (ueDistDef.paretoShape);
+					boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
+					sTime = TIME(exponential() + ueDistDef.paretoScale, "sec");
+				}
+				else if (ueDistDef.distribution == GAUSSIAN)
+				{
+					boost::normal_distribution<> gau_dist (ueDistDef.gaussianMean, ueDistDef.gaussianSigma);
+					boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
+					sTime = TIME(gaussian(), "sec");
 				}
 				else
 				{
-					LOG4CXX_ERROR(logger, "This distribution has not been implemented for calculating inter UE arrival times");
+					LOG4CXX_ERROR(logger, "This distribution has not been implemented to calculate UE arrival times");
 					pthread_exit(NULL);
 				}
-// TODO implementing remaining distributions
+
 				clock_gettime(CLOCK_REALTIME, &ts);
 				tvNsec = TIME(ts.tv_nsec, "nanosec");
 				tvSec = TIME(ts.tv_sec, "sec");
@@ -322,7 +351,7 @@ void *generateEventIds(void *t)
 					TIME tmpTime;
 					tmpTime = TIME(sTime.sec() + currentTime.sec(), "sec");
 					LOG4CXX_DEBUG(logger, "Next starting time for UE " << ue
-							<< " -> BS " << bs << " = " << std::setprecision(20) << tmpTime.sec() << "s\tCurrent time: " << currentTime.sec());
+							<< " -> BS " << bs << " in " << std::setprecision(20) << tmpTime.sec() << "s");
 					eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (tmpTime, BS_UE_PAIR (bs,ue)));
 					newTimeFound = true;
 				}
@@ -479,7 +508,6 @@ bool readConfiguration(char *configFileName_,
 		{
 			ueDistDef.distribution = EXPONENTIAL;
 			openmscConfig.lookupValue("ueActivity-Dist-Lambda", ueDistDef.exponentialLambda);
-			openmscConfig.lookupValue("ueActivity-Dist-Mode", ueDistDef.exponentialMode);
 		}
 		else if (strcmp(dist,"uniform_real") == 0)
 		{
@@ -502,13 +530,16 @@ bool readConfiguration(char *configFileName_,
 		else if (strcmp(dist,"pareto") == 0)
 		{
 			ueDistDef.distribution = PARETO;
-			PARETO_REAL paretoReal;
-				PARETO_LOCATION paretoLocation;
-
+			openmscConfig.lookupValue("ueActivity-Dist-Scale", ueDistDef.paretoScale);
+			openmscConfig.lookupValue("ueActivity-Dist-Shape", ueDistDef.paretoShape);
 		}
 		else if (strcmp(dist,"gaussian") == 0)
 		{
 			ueDistDef.distribution = GAUSSIAN;
+			openmscConfig.lookupValue("ueActivity-Dist-Mean", ueDistDef.gaussianMean);
+			openmscConfig.lookupValue("ueActivity-Dist-Sigma", ueDistDef.gaussianSigma);
+			if (ueDistDef.gaussianMean < ueDistDef.gaussianSigma)
+				LOG4CXX_INFO(logger, "Gaussian mean is smaller than its standard deviation - negative values could occur!")
 		}
 		else
 		{

@@ -3,6 +3,6 @@ enum latencyDistributionEnum {
 	EXPONENTIAL,
 	UNIFORM_REAL,
 	UNIFORM_INTEGER,
-	PARETO,			// not implemented yet
-	GAUSSIAN,		// not implemented yet
+	PARETO,
+	GAUSSIAN
 };
