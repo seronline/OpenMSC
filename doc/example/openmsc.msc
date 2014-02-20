@@ -3,31 +3,29 @@
 # All times given in milli seconds [ms]
 
 msc {
-	hscale = "3";
+	hscale = "1.9";
 
 	# Network Elements
-	UE,	
-	BS [ label = "eNB" ], 
-	MME, 
-	SGW [ label = "S-GW" ], 
-	PGW [ label = "P-GW" ], 
-	HSS;
+	UE [ textcolor="#2956A6", linecolour="#2956A6" ],	
+	BS [ label = "eNB", textcolor="#2956A6", linecolour="#2956A6" ], 
+	MME [ textcolor="#2956A6", linecolour="#2956A6" ];
 
 	# Use-Cases
-	--- [ label = "Success" ]; # P = {0.8} 
+	--- [ label = "Success", textcolor="#c74f10", linecolour="#c74f10" ]; # P = {0.8} 
 
-	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)" ]; # latencyDist = {exponential} latencyLambda = {4} latencyMin = {5} latencyMax = {100}
-	BS => MME [ label = "S1AP-INITAL_UE_MESSAGE(UE_ID,BS_ID)" ]; # latencyDist = {exponential} latencyLambda = {2} latencyMin = {0.1} latencyMax = {1}
-	MME => BS [ label = "S1AP-DOWNLINK_NAS_TRANSPORT(UE_ID)" ]; # latencyDist = {linear} latency = {1}
-	BS => UE [ label = "RRC-CONNECTION_SETUP(UE_ID)" ]; # latencyDist = {linear} latency = {1}
-	UE => BS [ label = "RRC-CONNECTION_COMPLETE(UE_ID)" ]; # latencyDist = {linear} latency = {1}
+	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4} latencyMin = {5} latencyMax = {100}
+	BS => MME [ label = "S1AP-INITAL_UE_MESSAGE(UE_ID,BS_ID)",textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {2} latencyMin = {0.1} latencyMax = {1}
+	MME => BS [ label = "S1AP-DOWNLINK_NAS_TRANSPORT(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {linear} latency = {1}
+	BS => UE [ label = "RRC-CONNECTION_SETUP(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {linear} latency = {1}
+	UE => BS [ label = "RRC-CONNECTION_COMPLETE(UE_ID)",textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {linear} latency = {1}
 
-	BS => UE [ label = "RRC-RADIO_BEARER_SETUP(UE_ID)" ]; # latencyDist = {exponential} latencyLambda = {4} latencyMin = {5} latencyMax = {100}
-	UE => BS [ label = "RRC-RADIO_BEARER_SETUP_COMPLETE(UE_ID)" ]; # latencyDist = {exponential} latencyLambda = {4} latencyMin = {5} latencyMax = {100}
+	BS => UE [ label = "RRC-RADIO_BEARER_SETUP(UE_ID)",textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4} latencyMin = {5} latencyMax = {100}
+	UE => BS [ label = "RRC-RADIO_BEARER_SETUP_COMPLETE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4} latencyMin = {5} latencyMax = {100}
 
-	UE -> BS [ label = "NBAP-MEASURMENT_REPORT(UE_ID,SIRErrorValue)" ]; # frequency = {2000} frequencyDist = {gaussian,2}
+	BS => UE [ label = "RRC-CONNECTION_RELEASE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; 	
+	UE => BS [ label = "RRC-CONNECTION_RELEASE_COMPLETE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; 	
 
-	--- [ label = "Failure" ]; # P = {0.15}
-
-	--- [ label = "Failure" ]; # P = {0.05}
+	--- [ label = "Failure", textcolor="#c74f10", linecolour="#c74f10" ]; # P = {0.15}
+	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4} latencyMin = {5} latencyMax = {100}
+	BS => UE [ label = "RRC-CONNECTION_REJECT(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ];
 }
