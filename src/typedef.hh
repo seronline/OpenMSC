@@ -174,10 +174,10 @@ typedef float LATENCY_MAXIMUM;
 typedef vector <INFORMATION_ELEMENT> INFORMATION_ELEMENT_VECTOR;
 
 /**
- * \typedef LATENCY_DISTRIBUTION
+ * \typedef DISTRIBUTION
  * \brief integer representation of a distribution using the latencyDistributionEnum enumeration declaration in enum.hh
  */
-typedef int LATENCY_DISTRIBUTION;
+typedef int DISTRIBUTION;
 
 /**
  * \typedef PARETO_REAL
@@ -201,22 +201,31 @@ typedef float PARETO_LOCATION;
  * More information can be found here: http://www.boost.org/doc/libs/1_54_0/libs/math/doc/html/math_toolkit/dist_ref/dists/exp_dist.html
  */
 typedef float EXPONENTIAL_LAMBDA;
-
+/**
+ * \typedef EXPONENTIAL_MODE
+ * \brief Floating point representation of the 'location' parameter for boost::exponential
+ *
+ * More information can be found here: http://www.boost.org/doc/libs/1_54_0/libs/math/doc/html/math_toolkit/dist_ref/dists/exp_dist.html
+ */
+typedef float EXPONENTIAL_MODE;
 /**
  * \typedef LATENCY_DESCRIPTION_STRUCT
  * \brief Struct describing the communication latency between two network elements.
  *
  * Note, all fields are optional and depend on what distribution was chosen. The names for the type definitions were chosen from the boost definitions for distributions: http://www.boost.org/doc/libs/1_54_0/libs/math/doc/html/dist.html
  */
-typedef struct latencyDescription {
-	LATENCY_DISTRIBUTION latencyDistribution;
+typedef struct distributionDefinition {
+	DISTRIBUTION distribution;
 	TIME latencyAverage;					/** Average latency of the communication between source and destination */
 	TIME latencyMinimum;
 	TIME latencyMaximum;
+	TIME uniformMin;						/** Start time for the uniform distribution */
+	TIME uniformMax;						/** Stop time for the uniform distribution */
 	PARETO_REAL paretoReal;
 	PARETO_LOCATION paretoLocation;
-	EXPONENTIAL_LAMBDA exponentialLambda;
-} LATENCY_DESCRIPTION_STRUCT;
+	EXPONENTIAL_LAMBDA exponentialLambda;	/** lambda parameter for exponential distribution */
+	EXPONENTIAL_MODE exponentialMode;		/** mode of exponential distribution */
+} DISTRIBUTION_DEFINITION_STRUCT;
 
 /**
  * \typedef COMMUNICATION_DESCRIPTION_STRUCT
@@ -228,7 +237,7 @@ typedef struct communicationDescription {
 	PROTOCOL_TYPE protocolType;						/** Type of network protocol used */
 	PRIMITIVE_NAME primitiveName;					/** Message type of the communication */
 	INFORMATION_ELEMENT_VECTOR informationElements;	/** Vector of information elements */
-	LATENCY_DESCRIPTION_STRUCT latencyDescription;	/** Struct holding information about the communication latency between source and destination */
+	DISTRIBUTION_DEFINITION_STRUCT latencyDescription;	/** Struct holding information about the communication latency between source and destination */
 } COMMUNICATION_DESCRIPTION_STRUCT;
 
 /**

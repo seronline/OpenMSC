@@ -69,7 +69,7 @@ using boost::asio::ip::tcp;
 int seed = 1,
 		numOfUesPerBs,
 		numOfBss;
-TIME ueCycleTime = TIME(0, "nanosec");
+DISTRIBUTION_DEFINITION_STRUCT ueDistDef;
 EVENT_MAP eventMap;
 EVENT_TIMER_MAP eventTimerMap;
 ReadMsc readMsc;
@@ -88,10 +88,9 @@ log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("logger");
 
 // ARGP
 const char *argp_program_bug_address = "Sebastian Robitzsch <srobitzsch@gmail.com>";
-const char *argp_program_version = "OpenMSC Version 0.1";
+const char *argp_program_version = "OpenMSC Version 0.2";
 /* Program documentation. */
-static char doc[] =
-"OpenMSC -- MSCgen-Based Control Plane Network Trace Emulator";
+static char doc[] = "OpenMSC -- MSCgen-Based Control Plane Network Trace Emulator";
 /* A description of the arguments we accept. */
 static char args_doc[] = "<IP> <PORT> <DEBUG_LEVEL>";
 struct arguments
@@ -164,45 +163,59 @@ static int parse_opt (
 void *generateEventIds(void *t)
 {
 	boost::asio::io_service io_service;
-	//time_t_timer timer(io_service);
 	boost::asio::deadline_timer timer(io_service);
 	base_generator_type generator(seed);
 
-
-	int ueIt,
-		bsIt;
-	TIME	remainingWaitingTime,
-	lastTime,
-	sTime;
+	UE_ID ue;
+	BS_ID bs;
+	TIME remainingWaitingTime,
+		sTime,
+		currentTime,
+		tvNsec,
+		tvSec;
 	EVENT_TIMER_MAP_IT eMapIt;
 	timespec ts;
 
 	for (;;)
 	{
-		boost::uniform_real<> uni_dist_real (0, ueCycleTime.sec());
-		boost::uniform_int<> uni_dist_int (0, ueCycleTime.sec());
-		boost::exponential_distribution<> exp_dist (4);
-		boost::bernoulli_distribution<> bernoulli_dist (0.5);
-		boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
-		boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (generator, uni_dist_int);
-		boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
-		boost::variate_generator<base_generator_type&, boost::bernoulli_distribution<> > bernoulli (generator, bernoulli_dist);
-		// Generate unique starting time for each UE between 0 and cycleTime
-		for (bsIt = 1; bsIt <= numOfBss; bsIt++)
+		// Generate inital starting time for each UE using the distribution specified in the openmsc.cfg file
+		for (bs = 1; bs <= numOfBss; bs++)
 		{
-			for (ueIt = 1; ueIt <= numOfUesPerBs; ueIt++)
+			for (ue = 1; ue <= numOfUesPerBs; ue++)
 			{
-				bool newTimeFound = false;
+				bool newTimeFound = false;	// make sure the start time is unique - OpenMSC cannot handle UEs with the exact same starting time
 
 				while (newTimeFound == false)
 				{
-					sTime = TIME(uni_real(), "sec"); // uni_real() creates seconds
+					clock_gettime(CLOCK_REALTIME, &ts);
+					tvNsec = TIME (ts.tv_nsec, "nanosec");
+					tvSec = TIME (ts.tv_sec, "sec");
+					currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
 
-					if (eventTimerMap.find(TIME(sTime.millisec(), "millisec")) == eventTimerMap.end())
+					if (ueDistDef.distribution == UNIFORM_REAL)
 					{
-						LOG4CXX_DEBUG(logger, "Relative starting time for communication description UE " << ueIt
-								<< " -> BS " << bsIt << " = " << sTime.sec());
-						eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (TIME(sTime.millisec(), "millisec"), BS_UE_PAIR (bsIt,ueIt)));
+						boost::uniform_real<> uni_dist_real (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
+						boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
+						sTime = TIME(uni_real(), "sec");
+					}
+					else if (ueDistDef.distribution == UNIFORM_INTEGER)
+					{
+						boost::uniform_int<> uni_dist_int (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
+						boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (generator, uni_dist_int);
+						sTime = TIME(uni_int(), "sec");
+					}
+					else if (ueDistDef.distribution == EXPONENTIAL)
+					{
+						boost::exponential_distribution<> exp_dist (ueDistDef.exponentialLambda);
+						boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
+						sTime = TIME(exponential() + ueDistDef.exponentialMode, "sec");
+					}
+					// TODO implementing remaining distributions
+					if (eventTimerMap.find(TIME(sTime.millisec(), "sec")) == eventTimerMap.end())
+					{
+						LOG4CXX_DEBUG(logger, "Inital starting time for UE " << ue
+								<< " -> BS " << bs << " = " << std::setprecision(20) << (sTime.sec() + currentTime.sec()));
+						eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (TIME(sTime.sec() + currentTime.sec(), "sec"), BS_UE_PAIR (bs,ue)));
 						newTimeFound = true;
 					}
 				}
@@ -210,23 +223,32 @@ void *generateEventIds(void *t)
 		}
 
 		eMapIt = eventTimerMap.begin();
-		lastTime = TIME(0, "millisec");
-		LOG4CXX_INFO(logger, "Starting to generate EventIDs for the next cycle of " << setprecision(PRECISION) << ueCycleTime.sec() << " seconds");
-		clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolut reference
-		TIME tvNsec(ts.tv_nsec, "nanosec");
-		TIME tvSec(ts.tv_sec, "sec");
-		double s = tvSec.sec() + tvNsec.sec();
-		TIME cycleStartTime(s, "sec");
-		// Generating EventIDs for each UE communication description
+
 		while (eMapIt != eventTimerMap.end())
 		{
 			ostringstream convert;
-			// First choose which use-case should be used for this particular UE
 			USE_CASE_ID useCaseId;
 			useCaseId = eventIdGenerator.DetermineUseCaseId();
-			// Now generate the EventIDs for this particular use case
-			double offset = 0.0;
-			double startingTimeForThisComDescr = cycleStartTime.sec() + (*eMapIt).first.sec();
+			eMapIt = eventTimerMap.begin();
+			ue = (*eMapIt).second.second;
+			bs = (*eMapIt).second.first;
+			clock_gettime(CLOCK_REALTIME, &ts);
+			tvNsec = TIME (ts.tv_nsec, "nanosec");
+			tvSec = TIME (ts.tv_sec, "sec");
+			currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
+
+			if ((*eMapIt).first.sec() > currentTime.sec())
+			{
+				TIME tmpTime = TIME((*eMapIt).first.sec() - currentTime.sec(), "sec");
+				LOG4CXX_DEBUG(logger, "Waiting " << std::setprecision(20) << tmpTime.sec() << "s");
+				timer.expires_from_now(boost::posix_time::microseconds(tmpTime.microsec()));
+				timer.wait();
+			}
+
+			clock_gettime(CLOCK_REALTIME, &ts);
+			tvNsec = TIME(ts.tv_nsec, "nanosec");
+			tvSec = TIME(ts.tv_sec, "sec");
+			TIME startingTimeForThisComDescr = TIME(tvSec.sec() + tvNsec.sec(), "sec");
 
 			for (int readMscIt = 0; readMscIt < readMsc.GetMscLength(useCaseId); readMscIt++)
 			{
@@ -237,63 +259,78 @@ void *generateEventIds(void *t)
 				for (unsigned int i = 0; i < eventIdVector.size(); i++)
 				{
 					EVENT_ID eventId;
+					EVENT_MAP_IT it;
 					TIME latency;
 					eventId = eventIdVector.at(i);
 					latency = eventIdGenerator.CalculateLatency(useCaseId, readMscIt);
-					startingTimeForThisComDescr += latency.sec(); // Bear in mind that the latency calc is still a dummy
+					startingTimeForThisComDescr = TIME(startingTimeForThisComDescr.sec() + latency.sec(), "sec");
 					mut.lock();
-					EVENT_MAP_IT it;
 					it = eventMap.begin();
 					// Finding spare time-slot in eventMap
+					float offset = 0.0;
 					while (it != eventMap.end())
 					{
-						it = eventMap.find(TIME(startingTimeForThisComDescr + offset, "sec"));
-						offset += 0.01;	//s
+						it = eventMap.find(TIME(startingTimeForThisComDescr.sec() + offset, "sec"));
+						offset += 0.0000000001;	//s
 					}
-					startingTimeForThisComDescr += offset;
-					offset = 0;
-					eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr, "sec"), eventId));
+					startingTimeForThisComDescr = TIME(startingTimeForThisComDescr.sec() + offset, "sec");
+					eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr.sec(), "sec"), eventId));
 					mut.unlock();
 					LOG4CXX_TRACE (logger, "Adding EventID " << eventId
-							<< " at relative time " << setprecision(20) << startingTimeForThisComDescr - cycleStartTime.sec()
+							<< " at relative time " << setprecision(20) << startingTimeForThisComDescr.sec()
 							<< " to eventMap for communication descriptor " << readMscIt+1);
 				}
 			}
-			// Calculating the remaining time for this cycle if there's no communication description left to be generated
-			// Note, this is a check if the cycle calculation took longer than the cycle. If so, an ERROR is thrown
-			if (eventTimerMap.size() == 1)
+			eventTimerMap.erase(eMapIt);
+			// Adding new starting time for the same UE
+			bool newTimeFound = false;
+			while (newTimeFound == false)
 			{
-				clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolute reference
-				TIME tvNsec(ts.tv_nsec, "nanosec");
-				TIME tvSec(ts.tv_sec, "sec");
-				double s = tvSec.sec() + tvNsec.sec();
-				TIME currentTime(s, "sec");
-				// Everything's ok
-				if ((cycleStartTime.sec() + ueCycleTime.sec()) > currentTime.sec())
-					remainingWaitingTime = TIME(cycleStartTime.sec() + ueCycleTime.sec() - currentTime.sec (), "sec");
+				if (ueDistDef.distribution == UNIFORM_REAL)
+				{
+					boost::uniform_real<> uni_dist_real (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
+					boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
+					sTime = TIME(uni_real(), "sec");
+					LOG4CXX_DEBUG(logger, "Starting time distribution is UNIFORM_REAL with min = "
+							<< ueDistDef.uniformMin.sec() << " and max = " << ueDistDef.uniformMax.sec()
+							<< "\tValue = " << sTime.sec());
+				}
+				else if (ueDistDef.distribution == UNIFORM_INTEGER)
+				{
+					boost::uniform_int<> uni_dist_int (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
+					boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (generator, uni_dist_int);
+					sTime = TIME(uni_int(), "sec");
+				}
+				else if (ueDistDef.distribution == EXPONENTIAL)
+				{
+					boost::exponential_distribution<> exp_dist (ueDistDef.exponentialLambda);
+					boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
+					sTime = TIME(exponential() + ueDistDef.exponentialMode, "sec");
+				}
 				else
 				{
-					remainingWaitingTime = TIME(0,"sec");
-					LOG4CXX_WARN(logger, "The EventID generation took "
-												<< currentTime.sec() - cycleStartTime.sec() - ueCycleTime.sec()
-												<< "s longer than the cycle was supposed to run. Cycle time is going to be adjusted to "
-												<< currentTime.sec() - cycleStartTime.sec()
-												<< "s");
-					ueCycleTime = TIME(currentTime.sec() - cycleStartTime.sec(), "sec");
+					LOG4CXX_ERROR(logger, "This distribution has not been implemented for calculating inter UE arrival times");
+					pthread_exit(NULL);
+				}
+// TODO implementing remaining distributions
+				clock_gettime(CLOCK_REALTIME, &ts);
+				tvNsec = TIME(ts.tv_nsec, "nanosec");
+				tvSec = TIME(ts.tv_sec, "sec");
+				currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
+				if (eventTimerMap.find(TIME(sTime.sec(), "sec")) == eventTimerMap.end())
+				{
+					TIME tmpTime;
+					tmpTime = TIME(sTime.sec() + currentTime.sec(), "sec");
+					LOG4CXX_DEBUG(logger, "Next starting time for UE " << ue
+							<< " -> BS " << bs << " = " << std::setprecision(20) << tmpTime.sec() << "s\tCurrent time: " << currentTime.sec());
+					eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (tmpTime, BS_UE_PAIR (bs,ue)));
+					newTimeFound = true;
 				}
 			}
-			eventTimerMap.erase(eMapIt);
-			eMapIt = eventTimerMap.begin();	// Re-initialising iterator
 		}
-
-		LOG4CXX_DEBUG(logger, "Waiting " << setprecision(PRECISION) << remainingWaitingTime.sec() << " seconds before new cycle starts");
-		timer.expires_from_now(boost::posix_time::microseconds(remainingWaitingTime.microsec()));
-		timer.wait();
 	}
-
 	pthread_exit(NULL);
 }
-
 /**
  * Sending EventIDs
  *
@@ -309,17 +346,14 @@ void *sendStream(void *t)
 	timespec ts;
 	ofstream file;
 	boost::asio::io_service io_serviceUdp, io_serviceTcp;
-
 	udp::socket udpSocket(io_serviceUdp, udp::endpoint(udp::v4(), 0));
 	udp::resolver resolverUdp(io_serviceUdp);
 	udp::resolver::query queryUdp(udp::v4(), ipAddress.c_str(), port.c_str());
 	udp::resolver::iterator iteratorUdp = resolverUdp.resolve(queryUdp);
-
 	tcp::resolver resolverTcp(io_serviceTcp);
 	tcp::resolver::query queryTcp(tcp::v4(), ipAddress.c_str(), port.c_str());
 	tcp::resolver::iterator iteratorTcp = resolverTcp.resolve(queryTcp);
 	tcp::socket tcpSocket(io_serviceTcp);
-
 	// Opening stream file if option was selected
 	if (streamToFileFlag)
 	{
@@ -336,14 +370,12 @@ void *sendStream(void *t)
 		if (TCP)
 			LOG4CXX_ERROR(logger, "TCP Exception: " << e.what());
 	}
-
 	LOG4CXX_DEBUG(logger, "Starting to send EventIDs");
 	clock_gettime(CLOCK_REALTIME, &ts); // getting cycle starting time for absolut reference
 	TIME tvNsec(ts.tv_nsec, "nanosec");
 	TIME tvSec(ts.tv_sec, "sec");
 	double s = tvSec.sec() + tvNsec.sec();
 	TIME emulationStartTime(s, "sec");
-
 	for(;;)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
@@ -396,12 +428,10 @@ void *sendStream(void *t)
  * This function leverages the libconfig library and reads the file openmsc.cfg from the doc/example directory
  *
  * @param configFileName_ Pointer of type char
- * @param ueCycleTime_ Pointer of type Time
  * @param numOfUesPerBs_ Pointer of type UE_ID
  * @param numOfBss_ Pointer of type BS_ID
  */
 bool readConfiguration(char *configFileName_,
-		TIME *ueCycleTime_,
 		UE_ID *numOfUesPerBs_,
 		BS_ID *numOfBss_)
 {
@@ -434,21 +464,67 @@ bool readConfiguration(char *configFileName_,
 	try
 	{
 		float cT;
+		const char *dist;
 		LOG4CXX_INFO(logger,"Reading libconfig configuration file " << configFileName_);
 		const Setting &openmscConfig = root["openmscConfig"];
 		openmscConfig.lookupValue("numOfUesPerBs", *numOfUesPerBs_);
 		openmscConfig.lookupValue("numOfBss", *numOfBss_);
-		openmscConfig.lookupValue("cycleTime", cT);
-		(*ueCycleTime_) = TIME(cT,"sec");
+		openmscConfig.lookupValue("ueActivity-Dist", dist);
+
+		if (strcmp(dist,"linear") == 0)
+		{
+			ueDistDef.distribution = LINEAR;
+		}
+		else if (strcmp(dist,"exponential") == 0)
+		{
+			ueDistDef.distribution = EXPONENTIAL;
+			openmscConfig.lookupValue("ueActivity-Dist-Lambda", ueDistDef.exponentialLambda);
+			openmscConfig.lookupValue("ueActivity-Dist-Mode", ueDistDef.exponentialMode);
+		}
+		else if (strcmp(dist,"uniform_real") == 0)
+		{
+			float min, max;
+			ueDistDef.distribution = UNIFORM_REAL;
+			openmscConfig.lookupValue("ueActivity-Dist-Min", min);
+			ueDistDef.uniformMin = TIME(min,"sec");
+			openmscConfig.lookupValue("ueActivity-Dist-Max", max);
+			ueDistDef.uniformMax = TIME(max,"sec");
+		}
+		else if (strcmp(dist,"uniform_int") == 0)
+		{
+			int min, max;
+			ueDistDef.distribution = UNIFORM_INTEGER;
+			openmscConfig.lookupValue("ueActivity-Dist-Min", min);
+			ueDistDef.uniformMin = TIME(min,"sec");
+			openmscConfig.lookupValue("ueActivity-Dist-Max", max);
+			ueDistDef.uniformMax = TIME(max,"sec");
+		}
+		else if (strcmp(dist,"pareto") == 0)
+		{
+			ueDistDef.distribution = PARETO;
+			PARETO_REAL paretoReal;
+				PARETO_LOCATION paretoLocation;
+
+		}
+		else if (strcmp(dist,"gaussian") == 0)
+		{
+			ueDistDef.distribution = GAUSSIAN;
+		}
+		else
+		{
+			LOG4CXX_ERROR(logger,"ueActivity-Dist comprises unknown value!");
+			return false;
+		}
+
+		openmscConfig.lookupValue("seed", seed);
 	}
 	catch(const SettingNotFoundException &nfex)
 	{
-		// Ignore.
+		LOG4CXX_ERROR(logger, "Setting not found in openmsc.cfg");
 		return false;
 	}
 	LOG4CXX_DEBUG(logger, "UEs per BS: " << *numOfUesPerBs_);
 	LOG4CXX_DEBUG(logger, "Base Stations: " << *numOfBss_);
-	LOG4CXX_DEBUG(logger, "Cycle Time: " << setprecision(PRECISION) << (*ueCycleTime_).sec());
 	readMsc.AddConfig(numOfUesPerBs_, numOfBss_);
 
 	return true;
@@ -495,18 +571,15 @@ int main (int argc, char** argv)
 		return 0;
 	}
 
-	LOG4CXX_INFO(logger,"*** OpenMSC Configuration ***");
-
 	if(argp_parse (&argp, argc, argv, 0, 0, 0) != 0)
 		return(EXIT_FAILURE);
 
-	LOG4CXX_INFO(logger,"*****************************");
 	dictionary.Init();	// initialising the dictionaries
 	readMsc.InitLog(logger);
 	dictionary.InitLog(logger);
 	readMsc.EstablishDictConnection(&dictionary);
 
-	if (!readConfiguration(config_file_name, &ueCycleTime, &numOfUesPerBs, &numOfBss))
+	if (!readConfiguration(config_file_name, &numOfUesPerBs, &numOfBss))
 		return(EXIT_FAILURE);
 
 	if (readMsc.ReadMscConfigFile() != 0)

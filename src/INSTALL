@@ -1,11 +1,13 @@
 ####################################################
 1) Required Libraries
 
-$ apt-get install libboost-all-dev libboost-dev liblog4cxx10-dev libconfig-all
+$ apt-get install libboost-all-dev liblog4cxx10-dev libconfig++8-dev build-essential
 
 Note, OpenMSC is only compilable if you stick to the following library requirements:
 libboost => 1.48
 libconfig => 8
+
+Also pay attention to install libconfig++ and not libconfig.
 
 ####################################################
 2) Compiling Binaries

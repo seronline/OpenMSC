@@ -94,9 +94,10 @@ EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,
 TIME EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step)
 {
 	COMMUNICATION_DESCRIPTION_STRUCT comDescrStruct;
+	TIME latency;
 	comDescrStruct = (*readMsc_).GetParticularCommunicationDescription(ucId, step);
-
-	return comDescrStruct.latencyDescription.latencyMinimum;
+	// TODO implement proper latency reading from msc file
+	return TIME(1.0, "millisec");
 }
 
 

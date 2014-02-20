@@ -88,7 +88,7 @@ int ReadMsc::ReadMscConfigFile ()
 
 		// Get message types and latencies for communications
 		boost::algorithm::split_regex(lineVector1, line, boost::regex ("=>"));
-		boost::algorithm::split_regex(lineVector2, line, boost::regex ("<="));
+
 		if (lineVector2.size() > 1)
 		{
 			LOG4CXX_ERROR (logger, "Wrong communication description in openmsc.msc! OpenMSC only accepts SRC => DST, not DST <= SRC:\n" << line);
@@ -110,7 +110,7 @@ int ReadMsc::ReadMscConfigFile ()
 			PRIMITIVE_NAME primitiveName;
 			PROTOCOL_TYPE protocolType;
 			INFORMATION_ELEMENT_VECTOR informationElements;
-			LATENCY_DESCRIPTION_STRUCT latencyDescription;
+			DISTRIBUTION_DEFINITION_STRUCT latencyDescription;
 
 			if (!ExtractDataFromLine(lineTmp, &source, &destination, &protocolType, &primitiveName, &informationElements, &latencyDescription))
 				return(EXIT_FAILURE);
@@ -146,7 +146,7 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		PROTOCOL_TYPE protType,
 		PRIMITIVE_NAME primName,
 		INFORMATION_ELEMENT_VECTOR infElements,
-		LATENCY_DESCRIPTION_STRUCT latencyDescription)
+		DISTRIBUTION_DEFINITION_STRUCT latencyDescription)
 {
 	USE_CASE_DESCRIPTION_MAP_IT useCaseDescrMapIt;
 	COMMUNICATION_DESCRIPTION_STRUCT commDescrStruct;
@@ -197,7 +197,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 		PROTOCOL_TYPE *protocolType_,
 		PRIMITIVE_NAME *primitiveName_,
 		INFORMATION_ELEMENT_VECTOR *informationElements_,
-		LATENCY_DESCRIPTION_STRUCT *latencyDescription_)
+		DISTRIBUTION_DEFINITION_STRUCT *latencyDescription_)
 {
 	MSC_LINE_VECTOR lineTmp, lineTmp2, lineTmp3, lineTmp4, lineTmp5, lineTmp6;
 
@@ -288,7 +288,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 			{
 				if (!CheckDistributionDataForConsistency(EXPONENTIAL, lineTmp2))
 					return false;
-				(*latencyDescription_).latencyDistribution = EXPONENTIAL;
+				(*latencyDescription_).distribution = EXPONENTIAL;
 				lineTmp5.clear();
 				lineTmp6.clear();
 				boost::algorithm::split_regex(lineTmp5, lineTmp2.at(1), boost::regex ("latencyLambda"));
@@ -306,8 +306,8 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 					return false;
 				}
 				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = TIME(1.0, "sec");
-				(*latencyDescription_).latencyMaximum = TIME(1.0, "sec");
+				(*latencyDescription_).latencyMinimum = TIME(1.0, "millisecond");
+				(*latencyDescription_).latencyMaximum = TIME(1.0, "millisecond");
 				LOG4CXX_TRACE(logger, "Exponential distribution parameters set: "
 						<< "lambda = " << (*latencyDescription_).exponentialLambda
 						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
@@ -318,26 +318,26 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 				if (!CheckDistributionDataForConsistency(PARETO, lineTmp2))
 					return false;
 
-				(*latencyDescription_).latencyDistribution = PARETO;
+				(*latencyDescription_).distribution = PARETO;
 				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = TIME(1.0, "sec");
-				(*latencyDescription_).latencyMaximum = TIME(1.0, "sec");
+				(*latencyDescription_).latencyMinimum = TIME(1.0, "millisecond");
+				(*latencyDescription_).latencyMaximum = TIME(1.0, "millisecond");
 				LOG4CXX_TRACE(logger, "Pareto distribution parameters set: "
 						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
 						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
 			}
 			else if (lineTmp4.at(0) == "uniformReal")
-				(*latencyDescription_).latencyDistribution = UNIFORM_REAL;
+				(*latencyDescription_).distribution = UNIFORM_REAL;
 			else if (lineTmp4.at(0) ==  "uniformInt")
-				(*latencyDescription_).latencyDistribution = UNIFORM_INTEGER;
+				(*latencyDescription_).distribution = UNIFORM_INTEGER;
 			else if (lineTmp4.at(0) == "gaussian")
-				(*latencyDescription_).latencyDistribution = GAUSSIAN;
+				(*latencyDescription_).distribution = GAUSSIAN;
 			else if (lineTmp4.at(0) == "linear")
 			{
-				(*latencyDescription_).latencyDistribution = LINEAR;
+				(*latencyDescription_).distribution = LINEAR;
 				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = TIME(1.0, "sec");
-				(*latencyDescription_).latencyMaximum = TIME(1.0, "sec");
+				(*latencyDescription_).latencyMinimum = TIME(1.0, "millisecond");
+				(*latencyDescription_).latencyMaximum = TIME(1.0, "millisecond");
 				LOG4CXX_TRACE(logger, "Linear distribution parameters set: "
 						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
 						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
@@ -350,7 +350,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 		}
 	}
 
-	if (!((*latencyDescription_).latencyDistribution > 0))
+	if (!((*latencyDescription_).distribution > 0))
 	{
 		LOG4CXX_ERROR(logger, "No distribution details given: " << line.at(1));
 		return false;
@@ -358,7 +358,7 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 	return true;
 }
 
-bool ReadMsc::CheckDistributionDataForConsistency(LATENCY_DISTRIBUTION dist,
+bool ReadMsc::CheckDistributionDataForConsistency(DISTRIBUTION dist,
 		MSC_LINE_VECTOR line)
 {
 	MSC_LINE_VECTOR tmp1, tmp2;
@@ -462,7 +462,7 @@ void ReadMsc::CheckPrimitiveNameIdentifier(PRIMITIVE_NAME primitiveName)
 	{
 		primitiveNamesCounter++;
 		primitiveNamesMap.insert(pair <NETWORK_ELEMENT,IDENTIFIER> (primitiveName,primitiveNamesCounter));
-		LOG4CXX_INFO(logger, "New ID: Primitive Name " << primitiveName << " -> " << primitiveNamesCounter);
+		LOG4CXX_DEBUG(logger, "New ID: Primitive Name " << primitiveName << " -> " << primitiveNamesCounter);
 		(*dictionary_).WritePrimitiveName(primitiveName, primitiveNamesCounter);
 		//TODO add MySQL entry
 	}
@@ -488,7 +488,7 @@ void ReadMsc::CheckProtocolTypeIdentifier(PROTOCOL_TYPE protocolType)
 	{
 		protocolTypesCounter++;
 		protocolTypesMap.insert(pair <PROTOCOL_TYPE,IDENTIFIER> (protocolType,protocolTypesCounter));
-		LOG4CXX_INFO(logger, "New ID: Protocol Type " << protocolType << " -> " << protocolTypesCounter);
+		LOG4CXX_DEBUG(logger, "New ID: Protocol Type " << protocolType << " -> " << protocolTypesCounter);
 		(*dictionary_).WriteProtocolType(protocolType, protocolTypesCounter);
 		//TODO add MySQL entry
 	}
@@ -499,7 +499,7 @@ void ReadMsc::CheckInformationElementIdentifier(INFORMATION_ELEMENT informationE
 	{
 		informationElementsCounter++;
 		informationElementsMap.insert(pair <INFORMATION_ELEMENT,IDENTIFIER> (informationElement,informationElementsCounter));
-		LOG4CXX_INFO(logger, "New ID: Information Element " << informationElement << " -> " << informationElementsCounter);
+		LOG4CXX_DEBUG(logger, "New ID: Information Element " << informationElement << " -> " << informationElementsCounter);
 		(*dictionary_).WriteInformationElement(informationElement, informationElementsCounter);
 		//TODO add MySQL entry
 	}
@@ -534,6 +534,7 @@ IDENTIFIER ReadMsc::TranslateNetworkElement2ID(NETWORK_ELEMENT ne, BS_ID bsId, U
 	// check that NE != (BS && UE)
 	if (ne == "BS")
 		return bsId*100;
+
 	else if (ne == "UE")
 		return (bsId * 100 + ueId);
 

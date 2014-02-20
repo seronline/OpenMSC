@@ -120,7 +120,7 @@ private:
 			PROTOCOL_TYPE protType,
 			PRIMITIVE_NAME primName,
 			INFORMATION_ELEMENT_VECTOR infElements,
-			LATENCY_DESCRIPTION_STRUCT latencyDescription );
+			DISTRIBUTION_DEFINITION_STRUCT latencyDescription );
 
 	/**
 	 * \brief Extracting communication description from a given line
@@ -141,7 +141,7 @@ private:
 			PROTOCOL_TYPE *protocolType_,
 			PRIMITIVE_NAME *primitiveName_,
 			INFORMATION_ELEMENT_VECTOR *informationElements_,
-			LATENCY_DESCRIPTION_STRUCT *latencyDescription_ );
+			DISTRIBUTION_DEFINITION_STRUCT *latencyDescription_ );
 
 	/**
 	 * \brief Distribution details from openmsc.msc are being checked for consistency
@@ -150,7 +150,7 @@ private:
 	 * @return Boolean indicating whether or not the given data was correct
 	 */
 	bool CheckDistributionDataForConsistency(
-			LATENCY_DISTRIBUTION dist,
+			DISTRIBUTION dist,
 			MSC_LINE_VECTOR line );
 
 	/**

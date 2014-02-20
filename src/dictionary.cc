@@ -54,7 +54,7 @@ void Dictionary::WriteNetworkElement(NETWORK_ELEMENT ne, IDENTIFIER id)
 	ofstream dict;
 
 	dict.open (networkElementsDict, ios::app);
-	dict << ne << "\t" << id << endl;
+	dict << ne << "\t" << setfill('0') << setw(5) << id << endl;
 	dict.close();
 	LOG4CXX_DEBUG(logger, "Dictionary '" << networkElementsDict << "' extended with network element " << ne << " and ID " << id);
 }
@@ -63,7 +63,7 @@ void Dictionary::WriteProtocolType(PROTOCOL_TYPE pt, IDENTIFIER id)
 	ofstream dict;
 
 	dict.open (protocolTypesDict, ios::app);
-	dict << pt << "\t" << id << endl;
+	dict << pt << "\t" << setfill('0') << setw(2) << id << endl;
 	dict.close();
 	LOG4CXX_DEBUG(logger, "Dictionary '" << protocolTypesDict << "' extended with protocol type " << pt << " and ID " << id);
 }
@@ -72,7 +72,7 @@ void Dictionary::WritePrimitiveName(PRIMITIVE_NAME pn, IDENTIFIER id)
 	ofstream dict;
 
 	dict.open (primitiveNamesDict, ios::app);
-	dict << pn << "\t" << id << endl;
+	dict << pn << "\t" << setfill('0') << setw(2) << id << endl;
 	dict.close();
 	LOG4CXX_DEBUG(logger, "Dictionary '" << primitiveNamesDict << "' extended with primitive name " << pn << " and ID " << id);
 }
@@ -81,7 +81,7 @@ void Dictionary::WriteInformationElement(INFORMATION_ELEMENT ie, IDENTIFIER id)
 	ofstream dict;
 
 	dict.open (informationElementsDict, ios::app);
-	dict << ie << "\t" << id << endl;
+	dict << ie << "\t" << setfill('0') << setw(3) << id << endl;
 	dict.close();
 	LOG4CXX_DEBUG(logger, "Dictionary '" << informationElementsDict << "' extended with information element " << ie << " and ID " << id);
 }
