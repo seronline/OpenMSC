@@ -37,6 +37,7 @@
 #include <boost/random/variate_generator.hpp>
 #include <boost/random/exponential_distribution.hpp>
 #include <boost/random/normal_distribution.hpp>
+#include <boost/random/gamma_distribution.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include "eventIdGenerator.hh"
 #include <boost/asio.hpp>
@@ -210,17 +211,23 @@ void *generateEventIds(void *t)
 						boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
 						sTime = TIME(exponential(), "sec");
 					}
-					else if (ueDistDef.distribution == PARETO)
-					{
-						boost::exponential_distribution<> exp_dist (ueDistDef.paretoShape);
-						boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
-						sTime = TIME(exponential() + ueDistDef.paretoScale, "sec");
-					}
 					else if (ueDistDef.distribution == GAUSSIAN)
 					{
-						boost::normal_distribution<> gau_dist (ueDistDef.gaussianMean, ueDistDef.gaussianSigma);
+						boost::normal_distribution<> gau_dist (ueDistDef.gaussianMu, ueDistDef.gaussianSigma);
 						boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
 						sTime = TIME(gaussian(), "sec");
+					}
+					else if (ueDistDef.distribution == GAMMA)
+					{
+						boost::gamma_distribution<> gamma_dist (ueDistDef.gammaAlpha, ueDistDef.gammaBeta);
+						boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > gamma (generator, gamma_dist);
+						sTime = TIME(gamma(), "sec");
+					}
+					else if (ueDistDef.distribution == ERLANG)
+					{
+						boost::gamma_distribution<> erlang_dist (ueDistDef.erlangAlpha, ueDistDef.erlangBeta);
+						boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > erlang (generator, erlang_dist);
+						sTime = TIME(erlang(), "sec");
 					}
 					else
 					{
@@ -324,17 +331,23 @@ void *generateEventIds(void *t)
 					boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
 					sTime = TIME(exponential(), "sec");
 				}
-				else if (ueDistDef.distribution == PARETO)
-				{
-					boost::exponential_distribution<> exp_dist (ueDistDef.paretoShape);
-					boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
-					sTime = TIME(exponential() + ueDistDef.paretoScale, "sec");
-				}
 				else if (ueDistDef.distribution == GAUSSIAN)
 				{
-					boost::normal_distribution<> gau_dist (ueDistDef.gaussianMean, ueDistDef.gaussianSigma);
+					boost::normal_distribution<> gau_dist (ueDistDef.gaussianMu,ueDistDef.gaussianSigma);
 					boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
 					sTime = TIME(gaussian(), "sec");
+				}
+				else if (ueDistDef.distribution == GAMMA)
+				{
+					boost::gamma_distribution<> gamma_dist (ueDistDef.gammaAlpha, ueDistDef.gammaBeta);
+					boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > gamma (generator, gamma_dist);
+					sTime = TIME(gamma(), "sec");
+				}
+				else if (ueDistDef.distribution == ERLANG)
+				{
+					boost::gamma_distribution<> erlang_dist (ueDistDef.erlangAlpha, ueDistDef.erlangBeta);
+					boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > erlang (generator, erlang_dist);
+					sTime = TIME(erlang(), "sec");
 				}
 				else
 				{
@@ -527,19 +540,23 @@ bool readConfiguration(char *configFileName_,
 			openmscConfig.lookupValue("ueActivity-Dist-Max", max);
 			ueDistDef.uniformMax = TIME(max,"sec");
 		}
-		else if (strcmp(dist,"pareto") == 0)
+		else if (strcmp(dist,"gamma") == 0)
 		{
-			ueDistDef.distribution = PARETO;
-			openmscConfig.lookupValue("ueActivity-Dist-Scale", ueDistDef.paretoScale);
-			openmscConfig.lookupValue("ueActivity-Dist-Shape", ueDistDef.paretoShape);
+			ueDistDef.distribution = GAMMA;
+			openmscConfig.lookupValue("ueActivity-Dist-Alpha", ueDistDef.gammaAlpha);
+			openmscConfig.lookupValue("ueActivity-Dist-Beta", ueDistDef.gammaBeta);
+		}
+		else if (strcmp(dist,"erlang") == 0)
+		{
+			ueDistDef.distribution = ERLANG;
+			openmscConfig.lookupValue("ueActivity-Dist-Alpha", ueDistDef.erlangAlpha);
+			openmscConfig.lookupValue("ueActivity-Dist-Beta", ueDistDef.erlangBeta);
 		}
 		else if (strcmp(dist,"gaussian") == 0)
 		{
 			ueDistDef.distribution = GAUSSIAN;
-			openmscConfig.lookupValue("ueActivity-Dist-Mean", ueDistDef.gaussianMean);
+			openmscConfig.lookupValue("ueActivity-Dist-Mu", ueDistDef.gaussianMu);
 			openmscConfig.lookupValue("ueActivity-Dist-Sigma", ueDistDef.gaussianSigma);
-			if (ueDistDef.gaussianMean < ueDistDef.gaussianSigma)
-				LOG4CXX_INFO(logger, "Gaussian mean is smaller than its standard deviation - negative values could occur!")
 		}
 		else
 		{

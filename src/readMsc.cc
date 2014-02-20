@@ -306,23 +306,10 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 					return false;
 				}
 				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = TIME(1.0, "millisecond");
-				(*latencyDescription_).latencyMaximum = TIME(1.0, "millisecond");
+				(*latencyDescription_).latencyMinimum = TIME(100.0, "millisecond");
+				(*latencyDescription_).latencyMaximum = TIME(100.0, "millisecond");
 				LOG4CXX_TRACE(logger, "Exponential distribution parameters set: "
 						<< "lambda = " << (*latencyDescription_).exponentialLambda
-						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
-						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
-			}
-			else if (lineTmp4.at(0) == "pareto")
-			{
-				if (!CheckDistributionDataForConsistency(PARETO, lineTmp2))
-					return false;
-
-				(*latencyDescription_).distribution = PARETO;
-				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = TIME(1.0, "millisecond");
-				(*latencyDescription_).latencyMaximum = TIME(1.0, "millisecond");
-				LOG4CXX_TRACE(logger, "Pareto distribution parameters set: "
 						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
 						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
 			}
@@ -336,8 +323,8 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 			{
 				(*latencyDescription_).distribution = LINEAR;
 				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = TIME(1.0, "millisecond");
-				(*latencyDescription_).latencyMaximum = TIME(1.0, "millisecond");
+				(*latencyDescription_).latencyMinimum = TIME(100.0, "millisecond");
+				(*latencyDescription_).latencyMaximum = TIME(100.0, "millisecond");
 				LOG4CXX_TRACE(logger, "Linear distribution parameters set: "
 						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
 						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
