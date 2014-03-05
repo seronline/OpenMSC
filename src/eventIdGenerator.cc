@@ -23,6 +23,10 @@
 #include <boost/random/linear_congruential.hpp>
 #include <boost/random/uniform_int.hpp>
 #include <boost/random/variate_generator.hpp>
+#include <boost/random/exponential_distribution.hpp>
+#include <boost/random/uniform_real.hpp>
+#include <boost/random/normal_distribution.hpp>
+#include <boost/random/gamma_distribution.hpp>
 #include "eventIdGenerator.hh"
 
 void EventIdGenerator::Init(ReadMsc *rMsc_)
@@ -91,13 +95,36 @@ EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,
 
 	return eIdV;
 }
-TIME EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step)
+TIME EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step, base_generator_type *gen)
 {
 	COMMUNICATION_DESCRIPTION_STRUCT comDescrStruct;
 	TIME latency;
 	comDescrStruct = (*readMsc_).GetParticularCommunicationDescription(ucId, step);
-	// TODO implement proper latency reading from msc file
-	return TIME(1.0, "millisec");
+	if (comDescrStruct.latencyDescription.distribution == LINEAR)
+		latency = TIME(comDescrStruct.latencyDescription.linearLatency.millisec(), "millisec");
+	else if (comDescrStruct.latencyDescription.distribution == EXPONENTIAL)
+	{
+		boost::exponential_distribution<> exp_dist (comDescrStruct.latencyDescription.exponentialLambda);
+		boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (*gen, exp_dist);
+		latency = TIME(exponential(), "sec");
+	}
+	else if (comDescrStruct.latencyDescription.distribution == GAUSSIAN)
+	{
+		boost::normal_distribution<> gaussian_dist (comDescrStruct.latencyDescription.gaussianMu, comDescrStruct.latencyDescription.gaussianSigma);
+		boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (*gen, gaussian_dist);
+		latency = TIME(gaussian(), "sec");
+	}
+	else
+	{
+		latency = TIME(0.0, "sec");
+		LOG4CXX_ERROR (logger, "Latency distribution " << comDescrStruct.latencyDescription.distribution << " has not been implemented for use case " << ucId << ", Step " << step);
+	}
+
+	LOG4CXX_TRACE (logger, "Latency for use-case ID " << ucId
+			<< ", Step " << step
+			<< " = " << latency.millisec() <<
+			"ms\t(Distribution = " << comDescrStruct.latencyDescription.distribution << ")");
+	return TIME(latency.millisec(), "millisec");
 }
 
 

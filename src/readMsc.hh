@@ -142,7 +142,15 @@ private:
 			PRIMITIVE_NAME *primitiveName_,
 			INFORMATION_ELEMENT_VECTOR *informationElements_,
 			DISTRIBUTION_DEFINITION_STRUCT *latencyDescription_ );
-
+	/**
+	 * \brief Function to parse latency data from MSC line and extract the value for given element
+	 * @param line The full line which comprises all latency information
+	 * @param element The latency element for which its value should be looked up
+	 * @return The value for the given latency element
+	 */
+	const char * GetLatencyValue(
+			string line,
+			string element );
 	/**
 	 * \brief Distribution details from openmsc.msc are being checked for consistency
 	 * @param dist The distribution which should be checked for completeness
@@ -151,7 +159,7 @@ private:
 	 */
 	bool CheckDistributionDataForConsistency(
 			DISTRIBUTION dist,
-			MSC_LINE_VECTOR line );
+			string line );
 
 	/**
 	 * Check if given network element is known. If not, create a new unique identifier for this network element.

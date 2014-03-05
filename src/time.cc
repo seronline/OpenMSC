@@ -49,6 +49,11 @@ TIME::TIME(long double t, const char unit[]) {
 	{
 		time = (unsigned long long)t;
 	}
+	else
+	{
+		std::cout << "ERROR!!! Unknown time unit " << unit << std::endl;
+		time = 0.0;
+	}
 	//std::cout << "Created new TIME instance with value " << std::setprecision(20) << time << std::endl;
 }
 long unsigned int TIME::nanosec() const

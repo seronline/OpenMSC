@@ -265,75 +265,80 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 
 	// Latency description
 	boost::split (lineTmp2, line.at(1), boost::is_any_of("#"));
-
+	int pos;
 	if (lineTmp2.size() > 1)
-		boost::split (lineTmp3, lineTmp2.at(1), boost::is_any_of(" "));
+	{
+		for (int i = 0; i < lineTmp2.size(); i++)
+		{
+			if (lineTmp2.at(i).find("latencyDist") != std::string::npos)
+			{
+				LOG4CXX_TRACE(logger, "Found new communication descriptor latency distribution values: " << lineTmp2.at(i));
+				boost::split (lineTmp3, lineTmp2.at(i), boost::is_any_of(" "));
+				pos = i;
+			}
+		}
+	}
 	else
 	{
 		LOG4CXX_ERROR(logger, "No data given: " << line.at(1));
-
 		return false;
 	}
+	string latencyLine;
+	for (int i = 0; i < lineTmp3.size(); i++)
+		latencyLine.append(lineTmp3.at(i));
 
-	for (unsigned int i = 0; i < lineTmp3.size(); i++)
+
+	if (latencyLine.find("latencyDist") != std::string::npos)
 	{
-		if (lineTmp3.at(i) == "latencyDist")
+		string d = GetLatencyValue (latencyLine, "latencyDist");
+
+		if (d == "exponential")
 		{
-			boost::algorithm::split_regex(lineTmp4, lineTmp2.at(1), boost::regex ("latencyDist"));
-			boost::split(lineTmp5, lineTmp4.at(1), boost::is_any_of("{"));
-			lineTmp4.clear();
-			boost::split(lineTmp4, lineTmp5.at(1), boost::is_any_of("}"));
-
-			if (lineTmp4.at(0) == "exponential")
-			{
-				if (!CheckDistributionDataForConsistency(EXPONENTIAL, lineTmp2))
-					return false;
-				(*latencyDescription_).distribution = EXPONENTIAL;
-				lineTmp5.clear();
-				lineTmp6.clear();
-				boost::algorithm::split_regex(lineTmp5, lineTmp2.at(1), boost::regex ("latencyLambda"));
-				if (lineTmp5.size() > 1)
-				{
-					boost::split(lineTmp6, lineTmp5.at(1), boost::is_any_of("{"));
-					lineTmp5.clear();
-					boost::split(lineTmp5, lineTmp6.at(1), boost::is_any_of("}"));
-					(*latencyDescription_).exponentialLambda = atof(lineTmp5.at(0).c_str());
-
-				}
-				else
-				{
-					LOG4CXX_ERROR(logger, "Lambda not provided in openmsc.msc file for exponential distribution: " << lineTmp2.at(1));
-					return false;
-				}
-				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = TIME(100.0, "millisecond");
-				(*latencyDescription_).latencyMaximum = TIME(100.0, "millisecond");
-				LOG4CXX_TRACE(logger, "Exponential distribution parameters set: "
-						<< "lambda = " << (*latencyDescription_).exponentialLambda
-						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
-						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
-			}
-			else if (lineTmp4.at(0) == "uniformReal")
-				(*latencyDescription_).distribution = UNIFORM_REAL;
-			else if (lineTmp4.at(0) ==  "uniformInt")
-				(*latencyDescription_).distribution = UNIFORM_INTEGER;
-			else if (lineTmp4.at(0) == "gaussian")
-				(*latencyDescription_).distribution = GAUSSIAN;
-			else if (lineTmp4.at(0) == "linear")
-			{
-				(*latencyDescription_).distribution = LINEAR;
-				// TODO implement proper latency reading
-				(*latencyDescription_).latencyMinimum = TIME(100.0, "millisecond");
-				(*latencyDescription_).latencyMaximum = TIME(100.0, "millisecond");
-				LOG4CXX_TRACE(logger, "Linear distribution parameters set: "
-						<< " latencyMinimum = " << (*latencyDescription_).latencyMinimum.millisec()
-						<< " latencyMaximum = " << (*latencyDescription_).latencyMaximum.millisec());
-			}
-			else
-			{
-				LOG4CXX_ERROR(logger, "The specified distribution in openmsc.msc does not exit: " << lineTmp4.at(0));
-				return(EXIT_FAILURE);
-			}
+			if (!CheckDistributionDataForConsistency(EXPONENTIAL, latencyLine))
+				return false;
+			(*latencyDescription_).distribution = EXPONENTIAL;
+			(*latencyDescription_).exponentialLambda = atof(GetLatencyValue(latencyLine, "latencyLambda"));
+			LOG4CXX_TRACE(logger, "EXPONENTIAL distribution parameters set: "
+					<< "lambda = " << (*latencyDescription_).exponentialLambda);
+		}
+		else if (d == "uniformReal")
+		{
+			if (!CheckDistributionDataForConsistency(UNIFORM_REAL, latencyLine))
+				return false;
+			(*latencyDescription_).distribution = UNIFORM_REAL;
+			LOG4CXX_TRACE(logger, "UNIFORM_REAL distribution parameters set");
+		}
+		else if (d ==  "uniformInt")
+		{
+			if (!CheckDistributionDataForConsistency(UNIFORM_INTEGER, latencyLine))
+				return false;
+			(*latencyDescription_).distribution = UNIFORM_INTEGER;
+			LOG4CXX_TRACE(logger, "UNIFORM_REAL distribution parameters set");
+		}
+		else if (d == "gaussian")
+		{
+			if (!CheckDistributionDataForConsistency(GAUSSIAN, latencyLine))
+				return false;
+			(*latencyDescription_).distribution = GAUSSIAN;
+			(*latencyDescription_).gaussianMu = atof(GetLatencyValue(latencyLine, "latencyMu"));
+			(*latencyDescription_).gaussianSigma = atof(GetLatencyValue(latencyLine, "latencySigma"));
+			LOG4CXX_TRACE(logger, "GAUSSIAN distribution parameters set: "
+					<< " Mu / Mean = " << (*latencyDescription_).gaussianMu << "ms"
+					<< "\tSigma / StdDev = " << (*latencyDescription_).gaussianSigma);
+		}
+		else if (d == "linear")
+		{
+			if (!CheckDistributionDataForConsistency(LINEAR, latencyLine))
+				return false;
+			(*latencyDescription_).distribution = LINEAR;
+			(*latencyDescription_).linearLatency = TIME(atof(GetLatencyValue(latencyLine, "latencyValue")), "millisec");
+			LOG4CXX_TRACE(logger, "LINEAR distribution parameters set: "
+					<< " fixed latency = " << (*latencyDescription_).linearLatency.millisec() << "ms");
+		}
+		else
+		{
+			LOG4CXX_ERROR(logger, "The specified distribution in openmsc.msc does not exit: " << d);
+			return(EXIT_FAILURE);
 		}
 	}
 
@@ -344,48 +349,56 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 	}
 	return true;
 }
-
-bool ReadMsc::CheckDistributionDataForConsistency(DISTRIBUTION dist,
-		MSC_LINE_VECTOR line)
+const char * ReadMsc::GetLatencyValue(string line, string element)
 {
-	MSC_LINE_VECTOR tmp1, tmp2;
+	MSC_LINE_VECTOR lineTmp1,lineTmp2;
+	boost::algorithm::split_regex(lineTmp1, line, boost::regex (element));
+	boost::split(lineTmp2, lineTmp1.at(1), boost::is_any_of("{"));
+	lineTmp1.clear();
+	boost::split(lineTmp1, lineTmp2.at(1), boost::is_any_of("}"));
+	return lineTmp1.at(0).c_str();
+}
+bool ReadMsc::CheckDistributionDataForConsistency(DISTRIBUTION dist,
+		string line)
+{
+	bool distFound = false,
+			distParamsFound = false;
 
-	boost::algorithm::split_regex(tmp1, line.at(1), boost::regex ("latencyDist"));
-
-	if (tmp1.size() <= 1) {
-		LOG4CXX_ERROR(logger, "latencyDist information is missing");
+	if (line.find("latencyDist") == std::string::npos)
+	{
+		LOG4CXX_ERROR(logger, "latencyDist element missing: " << line);
 		return false;
 	}
 
-	tmp1.clear();
-
-	if (dist == EXPONENTIAL)
+	switch(dist)
 	{
-		boost::algorithm::split_regex(tmp1, line.at(1), boost::regex ("latencyLambda"));
+	case LINEAR:
+		if (line.find("linear") != std::string::npos)
+			distFound = true;
+		if (line.find("latency") != std::string::npos)
+			distParamsFound = true;
+		break;
+	case EXPONENTIAL:
+		if (line.find("exponential") != std::string::npos)
+			distFound = true;
+		if (line.find("latencyLambda") != std::string::npos)
+			distParamsFound = true;
+		break;
+	case GAUSSIAN:
+		if (line.find("gaussian") != std::string::npos)
+			distFound = true;
+		if (line.find("latencyMu") != std::string::npos && line.find("latencySigma") != std::string::npos)
+			distParamsFound = true;
+		break;
+	default:
+		LOG4CXX_ERROR(logger, "Latency distribution " << dist << " has not been implemented");
+		break;
+	}
 
-		if (tmp1.size() <= 1)
-		{
-			LOG4CXX_ERROR(logger, "latencyLambda is missing for exponential distribution: " << line.at(1));
-			return false;
-		}
-
-		tmp1.clear();
-		boost::algorithm::split_regex(tmp1, line.at(1), boost::regex ("latencyMin"));
-
-		if (tmp1.size() <= 1)
-		{
-			LOG4CXX_ERROR(logger, "latencyMin is missing for exponential distribution");
-			return false;
-		}
-
-		tmp1.clear();
-		boost::algorithm::split_regex(tmp1, line.at(1), boost::regex ("latencyMax"));
-
-		if (tmp1.size() <= 1)
-		{
-			LOG4CXX_ERROR(logger, "latencyMax is missing for exponential distribution");
-			return false;
-		}
+	if (!distFound || !distParamsFound)
+	{
+		LOG4CXX_ERROR(logger, "latency information missing in line " << line);
+		return false;
 	}
 
 	return true;

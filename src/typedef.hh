@@ -191,6 +191,7 @@ typedef struct distributionDefinition {
 	TIME latencyMaximum;
 	TIME uniformMin;						/** Start time for the uniform distribution */
 	TIME uniformMax;						/** Stop time for the uniform distribution */
+	TIME linearLatency;						/** Fixed time for latency of a communication descriptor */
 	float gammaAlpha;						/** scale gamma parameter in seconds */
 	float gammaBeta;						/** shape gamma parameter (probability) */
 	int erlangAlpha;						/** scale erlang parameter in seconds */

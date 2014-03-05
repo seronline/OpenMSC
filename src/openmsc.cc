@@ -165,8 +165,8 @@ void *generateEventIds(void *t)
 {
 	boost::asio::io_service io_service;
 	boost::asio::deadline_timer timer(io_service);
-	base_generator_type generator(seed);
-
+	base_generator_type generator(seed),
+			generatorComDescriptor(seed);
 	UE_ID ue;
 	BS_ID bs;
 	TIME remainingWaitingTime,
@@ -184,56 +184,74 @@ void *generateEventIds(void *t)
 		{
 			for (ue = 1; ue <= numOfUesPerBs; ue++)
 			{
+				clock_gettime(CLOCK_REALTIME, &ts);
+				tvNsec = TIME (ts.tv_nsec, "nanosec");
+				tvSec = TIME (ts.tv_sec, "sec");
+				currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
+
+				if (ueDistDef.distribution == UNIFORM_REAL)
+				{
+					boost::uniform_real<> uni_dist_real (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
+					boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
+					sTime = TIME(uni_real(), "sec");
+					LOG4CXX_TRACE(logger, "Starting time distribution is UNIFORM_REAL with min = "
+											<< ueDistDef.uniformMin.sec() << " and max = " << ueDistDef.uniformMax.sec()
+											<< "\tValue = " << sTime.sec());
+				}
+				else if (ueDistDef.distribution == UNIFORM_INTEGER)
+				{
+					boost::uniform_int<> uni_dist_int ((int)ueDistDef.uniformMin.sec(), (int)ueDistDef.uniformMax.sec());
+					boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (generator, uni_dist_int);
+					sTime = TIME(uni_int(), "sec");
+					LOG4CXX_TRACE(logger, "Starting time distribution is UNIFORM_INT with Min = "
+											<< ueDistDef.uniformMin.sec() << " and Max = " << ueDistDef.uniformMax.sec()
+											<< "\tValue = " << sTime.sec());
+				}
+				else if (ueDistDef.distribution == EXPONENTIAL)
+				{
+					boost::exponential_distribution<> exp_dist (ueDistDef.exponentialLambda);
+					boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
+					sTime = TIME(exponential(), "sec");
+					LOG4CXX_TRACE(logger, "Starting time distribution is EXPONENTIAL with Lambda = "
+											<< ueDistDef.exponentialLambda
+											<< "\tValue = " << sTime.sec());
+				}
+				else if (ueDistDef.distribution == GAUSSIAN)
+				{
+					boost::normal_distribution<> gau_dist (ueDistDef.gaussianMu, ueDistDef.gaussianSigma);
+					boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
+					sTime = TIME(gaussian(), "sec");
+					LOG4CXX_TRACE(logger, "Starting time distribution is GAUSSIAN with Mu = " << ueDistDef.gaussianMu
+											<< " and Sigma = " << ueDistDef.gaussianSigma
+											<< "\tValue = " << sTime.sec());
+				}
+				else if (ueDistDef.distribution == GAMMA)
+				{
+					boost::gamma_distribution<> gamma_dist (ueDistDef.gammaAlpha, ueDistDef.gammaBeta);
+					boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > gamma (generator, gamma_dist);
+					sTime = TIME(gamma(), "sec");
+					LOG4CXX_TRACE(logger, "Starting time distribution is GAMMA with Alpha = " << ueDistDef.gammaAlpha
+											<< " and Beta = " << ueDistDef.gammaBeta
+											<< "\tValue = " << sTime.sec());
+				}
+				else if (ueDistDef.distribution == ERLANG)
+				{
+					boost::gamma_distribution<> erlang_dist ((int)ueDistDef.erlangAlpha, (int)ueDistDef.erlangBeta);
+					boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > erlang (generator, erlang_dist);
+					sTime = TIME(erlang(), "sec");
+					LOG4CXX_TRACE(logger, "Starting time distribution is GAMMA with Alpha = " << (int)ueDistDef.gammaAlpha
+											<< " and Beta = " << (int)ueDistDef.gammaBeta
+											<< "\tValue = " << sTime.sec());
+				}
+				else
+				{
+					LOG4CXX_ERROR(logger, "This distribution has not been implemented to calculate UE arrival times");
+					pthread_exit(NULL);
+				}
 				bool newTimeFound = false;	// make sure the start time is unique - OpenMSC cannot handle UEs with the exact same starting time
 
 				while (newTimeFound == false)
 				{
-					clock_gettime(CLOCK_REALTIME, &ts);
-					tvNsec = TIME (ts.tv_nsec, "nanosec");
-					tvSec = TIME (ts.tv_sec, "sec");
-					currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
-
-					if (ueDistDef.distribution == UNIFORM_REAL)
-					{
-						boost::uniform_real<> uni_dist_real (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
-						boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
-						sTime = TIME(uni_real(), "sec");
-					}
-					else if (ueDistDef.distribution == UNIFORM_INTEGER)
-					{
-						boost::uniform_int<> uni_dist_int (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
-						boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (generator, uni_dist_int);
-						sTime = TIME(uni_int(), "sec");
-					}
-					else if (ueDistDef.distribution == EXPONENTIAL)
-					{
-						boost::exponential_distribution<> exp_dist (ueDistDef.exponentialLambda);
-						boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
-						sTime = TIME(exponential(), "sec");
-					}
-					else if (ueDistDef.distribution == GAUSSIAN)
-					{
-						boost::normal_distribution<> gau_dist (ueDistDef.gaussianMu, ueDistDef.gaussianSigma);
-						boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
-						sTime = TIME(gaussian(), "sec");
-					}
-					else if (ueDistDef.distribution == GAMMA)
-					{
-						boost::gamma_distribution<> gamma_dist (ueDistDef.gammaAlpha, ueDistDef.gammaBeta);
-						boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > gamma (generator, gamma_dist);
-						sTime = TIME(gamma(), "sec");
-					}
-					else if (ueDistDef.distribution == ERLANG)
-					{
-						boost::gamma_distribution<> erlang_dist (ueDistDef.erlangAlpha, ueDistDef.erlangBeta);
-						boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > erlang (generator, erlang_dist);
-						sTime = TIME(erlang(), "sec");
-					}
-					else
-					{
-						LOG4CXX_ERROR(logger, "This distribution has not been implemented to calculate UE arrival times");
-						pthread_exit(NULL);
-					}
 					if (eventTimerMap.find(TIME(sTime.sec(), "sec")) == eventTimerMap.end())
 					{
 						LOG4CXX_DEBUG(logger, "Initial starting time for UE " << ue
@@ -241,6 +259,11 @@ void *generateEventIds(void *t)
 								<< " using distribution " << ueDistDef.distribution);
 						eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (TIME(sTime.sec() + currentTime.sec(), "sec"), BS_UE_PAIR (bs,ue)));
 						newTimeFound = true;
+					}
+					else
+					{
+						TIME sTmp = TIME(1, "nanosec");
+						sTime = TIME(sTime.sec() + sTmp.sec(), "sec");
 					}
 				}
 			}
@@ -264,7 +287,7 @@ void *generateEventIds(void *t)
 			if ((*eMapIt).first.sec() > currentTime.sec())
 			{
 				TIME tmpTime = TIME((*eMapIt).first.sec() - currentTime.sec(), "sec");
-				LOG4CXX_DEBUG(logger, "Waiting " << std::setprecision(20) << tmpTime.sec() << "s");
+				LOG4CXX_TRACE(logger, "Waiting " << std::setprecision(20) << tmpTime.sec() << "s before generating another communication description");
 				timer.expires_from_now(boost::posix_time::microseconds(tmpTime.microsec()));
 				timer.wait();
 			}
@@ -286,7 +309,7 @@ void *generateEventIds(void *t)
 					EVENT_MAP_IT it;
 					TIME latency;
 					eventId = eventIdVector.at(i);
-					latency = eventIdGenerator.CalculateLatency(useCaseId, readMscIt);
+					latency = eventIdGenerator.CalculateLatency(useCaseId, readMscIt, &generatorComDescriptor);
 					startingTimeForThisComDescr = TIME(startingTimeForThisComDescr.sec() + latency.sec(), "sec");
 					mut.lock();
 					it = eventMap.begin();
@@ -307,66 +330,74 @@ void *generateEventIds(void *t)
 			}
 			eventTimerMap.erase(eMapIt);
 			// Adding new starting time for the same UE
+
+			if (ueDistDef.distribution == UNIFORM_REAL)
+			{
+				boost::uniform_real<> uni_dist_real (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
+				boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
+				sTime = TIME(uni_real(), "sec");
+				LOG4CXX_TRACE(logger, "Starting time distribution is UNIFORM_REAL with min = "
+						<< ueDistDef.uniformMin.sec() << " and max = " << ueDistDef.uniformMax.sec()
+						<< "\tValue = " << sTime.sec());
+			}
+			else if (ueDistDef.distribution == UNIFORM_INTEGER)
+			{
+				boost::uniform_int<> uni_dist_int ((int)ueDistDef.uniformMin.sec(), (int)ueDistDef.uniformMax.sec());
+				boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (generator, uni_dist_int);
+				sTime = TIME(uni_int(), "sec");
+				LOG4CXX_TRACE(logger, "Starting time distribution is UNIFORM_INT with min = "
+											<< ueDistDef.uniformMin.sec() << " and max = " << ueDistDef.uniformMax.sec()
+											<< "\tValue = " << sTime.sec());
+			}
+			else if (ueDistDef.distribution == EXPONENTIAL)
+			{
+				boost::exponential_distribution<> exp_dist (ueDistDef.exponentialLambda);
+				boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
+				sTime = TIME(exponential(), "sec");
+			}
+			else if (ueDistDef.distribution == GAUSSIAN)
+			{
+				boost::normal_distribution<> gau_dist (ueDistDef.gaussianMu,ueDistDef.gaussianSigma);
+				boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
+				sTime = TIME(gaussian(), "sec");
+			}
+			else if (ueDistDef.distribution == GAMMA)
+			{
+				boost::gamma_distribution<> gamma_dist (ueDistDef.gammaAlpha, ueDistDef.gammaBeta);
+				boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > gamma (generator, gamma_dist);
+				sTime = TIME(gamma(), "sec");
+			}
+			else if (ueDistDef.distribution == ERLANG)
+			{
+				boost::gamma_distribution<> erlang_dist (ueDistDef.erlangAlpha, ueDistDef.erlangBeta);
+				boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > erlang (generator, erlang_dist);
+				sTime = TIME(erlang(), "sec");
+			}
+			else
+			{
+				LOG4CXX_ERROR(logger, "This distribution has not been implemented to calculate UE arrival times");
+				pthread_exit(NULL);
+			}
+
+			clock_gettime(CLOCK_REALTIME, &ts);
+			tvNsec = TIME(ts.tv_nsec, "nanosec");
+			tvSec = TIME(ts.tv_sec, "sec");
+			currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
 			bool newTimeFound = false;
 			while (newTimeFound == false)
 			{
-				if (ueDistDef.distribution == UNIFORM_REAL)
-				{
-					boost::uniform_real<> uni_dist_real (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
-					boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
-					sTime = TIME(uni_real(), "sec");
-					LOG4CXX_DEBUG(logger, "Starting time distribution is UNIFORM_REAL with min = "
-							<< ueDistDef.uniformMin.sec() << " and max = " << ueDistDef.uniformMax.sec()
-							<< "\tValue = " << sTime.sec());
-				}
-				else if (ueDistDef.distribution == UNIFORM_INTEGER)
-				{
-					boost::uniform_int<> uni_dist_int (ueDistDef.uniformMin.sec(), ueDistDef.uniformMax.sec());
-					boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (generator, uni_dist_int);
-					sTime = TIME(uni_int(), "sec");
-				}
-				else if (ueDistDef.distribution == EXPONENTIAL)
-				{
-					boost::exponential_distribution<> exp_dist (ueDistDef.exponentialLambda);
-					boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (generator, exp_dist);
-					sTime = TIME(exponential(), "sec");
-				}
-				else if (ueDistDef.distribution == GAUSSIAN)
-				{
-					boost::normal_distribution<> gau_dist (ueDistDef.gaussianMu,ueDistDef.gaussianSigma);
-					boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
-					sTime = TIME(gaussian(), "sec");
-				}
-				else if (ueDistDef.distribution == GAMMA)
-				{
-					boost::gamma_distribution<> gamma_dist (ueDistDef.gammaAlpha, ueDistDef.gammaBeta);
-					boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > gamma (generator, gamma_dist);
-					sTime = TIME(gamma(), "sec");
-				}
-				else if (ueDistDef.distribution == ERLANG)
-				{
-					boost::gamma_distribution<> erlang_dist (ueDistDef.erlangAlpha, ueDistDef.erlangBeta);
-					boost::variate_generator<base_generator_type&, boost::gamma_distribution<> > erlang (generator, erlang_dist);
-					sTime = TIME(erlang(), "sec");
-				}
-				else
-				{
-					LOG4CXX_ERROR(logger, "This distribution has not been implemented to calculate UE arrival times");
-					pthread_exit(NULL);
-				}
-
-				clock_gettime(CLOCK_REALTIME, &ts);
-				tvNsec = TIME(ts.tv_nsec, "nanosec");
-				tvSec = TIME(ts.tv_sec, "sec");
-				currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
 				if (eventTimerMap.find(TIME(sTime.sec(), "sec")) == eventTimerMap.end())
 				{
 					TIME tmpTime;
 					tmpTime = TIME(sTime.sec() + currentTime.sec(), "sec");
 					LOG4CXX_DEBUG(logger, "Next starting time for UE " << ue
-							<< " -> BS " << bs << " in " << std::setprecision(20) << tmpTime.sec() << "s");
+							<< " -> BS " << bs << " in " << std::setprecision(20) << tmpTime.sec() - currentTime.sec() << "s");
 					eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (tmpTime, BS_UE_PAIR (bs,ue)));
 					newTimeFound = true;
+				}
+				else {
+					TIME sTmp = TIME(1, "nanosec");
+					sTime = TIME(sTime.sec() + sTmp.sec(), "sec");
 				}
 			}
 		}
@@ -530,6 +561,7 @@ bool readConfiguration(char *configFileName_,
 			ueDistDef.uniformMin = TIME(min,"sec");
 			openmscConfig.lookupValue("ueActivity-Dist-Max", max);
 			ueDistDef.uniformMax = TIME(max,"sec");
+			LOG4CXX_DEBUG(logger, "Distribution: uniform_real\tMin = " << ueDistDef.uniformMin.sec() << "\tMax = " << ueDistDef.uniformMax.sec());
 		}
 		else if (strcmp(dist,"uniform_int") == 0)
 		{
@@ -539,6 +571,7 @@ bool readConfiguration(char *configFileName_,
 			ueDistDef.uniformMin = TIME(min,"sec");
 			openmscConfig.lookupValue("ueActivity-Dist-Max", max);
 			ueDistDef.uniformMax = TIME(max,"sec");
+			LOG4CXX_DEBUG(logger, "Distribution: uniform_int\tMin = " << ueDistDef.uniformMin.sec() << "\tMax = " << ueDistDef.uniformMax.sec());
 		}
 		else if (strcmp(dist,"gamma") == 0)
 		{
@@ -563,7 +596,6 @@ bool readConfiguration(char *configFileName_,
 			LOG4CXX_ERROR(logger,"ueActivity-Dist comprises unknown value!");
 			return false;
 		}
-
 		openmscConfig.lookupValue("seed", seed);
 	}
 	catch(const SettingNotFoundException &nfex)

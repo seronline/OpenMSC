@@ -57,9 +57,10 @@ public:
 	/**
 	 * @param ucId The use-case ID
 	 * @param step The communication description steps within this use-case
-	 * @return The latency with which the message arrive at the destination
+	 * @param boost number generator
+	 * @return The latency with which the message arrives at the destination in millisecond
 	 */
-	TIME CalculateLatency(USE_CASE_ID ucId, int step);
+	TIME CalculateLatency(USE_CASE_ID ucId, int step, base_generator_type *gen);
 	/**
 	 * Initialising logging in ReadMsc class
 	 * @param l Pointer to LoggerPtr class
