@@ -106,19 +106,24 @@ TIME EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step, base_generat
 	{
 		boost::exponential_distribution<> exp_dist (comDescrStruct.latencyDescription.exponentialLambda);
 		boost::variate_generator<base_generator_type&, boost::exponential_distribution<> > exponential (*gen, exp_dist);
-		latency = TIME(exponential(), "sec");
+		latency = TIME(exponential(), "millisec");
 	}
 	else if (comDescrStruct.latencyDescription.distribution == GAUSSIAN)
 	{
 		boost::normal_distribution<> gaussian_dist (comDescrStruct.latencyDescription.gaussianMu, comDescrStruct.latencyDescription.gaussianSigma);
 		boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (*gen, gaussian_dist);
-		latency = TIME(gaussian(), "sec");
+		latency = TIME(gaussian(), "millisec");
+		while (latency.sec() > (comDescrStruct.latencyDescription.gaussianMu + 10*comDescrStruct.latencyDescription.gaussianSigma))
+			latency = TIME(gaussian(), "millisec");
 	}
 	else
 	{
-		latency = TIME(0.0, "sec");
+		latency = TIME(0.0, "millisec");
 		LOG4CXX_ERROR (logger, "Latency distribution " << comDescrStruct.latencyDescription.distribution << " has not been implemented for use case " << ucId << ", Step " << step);
 	}
+
+	if (latency.sec() > 10000)
+		LOG4CXX_TRACE (logger, "Problem with boost::*_distribution<> Please file a bug report on https://code.google.com/p/openmsc/issues/list");
 
 	LOG4CXX_TRACE (logger, "Latency for use-case ID " << ucId
 			<< ", Step " << step

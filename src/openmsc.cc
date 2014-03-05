@@ -252,7 +252,7 @@ void *generateEventIds(void *t)
 
 				while (newTimeFound == false)
 				{
-					if (eventTimerMap.find(TIME(sTime.sec(), "sec")) == eventTimerMap.end())
+					if (eventTimerMap.find(TIME(currentTime.sec() + sTime.sec(), "sec")) == eventTimerMap.end())
 					{
 						LOG4CXX_DEBUG(logger, "Initial starting time for UE " << ue
 								<< " -> BS " << bs << " = " << std::setprecision(20) << (sTime.sec() + currentTime.sec())
@@ -314,14 +314,14 @@ void *generateEventIds(void *t)
 					mut.lock();
 					it = eventMap.begin();
 					// Finding spare time-slot in eventMap
-					float offset = 0.0;
+					TIME offset = TIME(0.0, "sec");
 					while (it != eventMap.end())
 					{
-						it = eventMap.find(TIME(startingTimeForThisComDescr.sec() + offset, "sec"));
-						offset += 0.0000000001;	//s
+						it = eventMap.find(TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"));
+						if (it != eventMap.end())
+							offset = TIME(offset.nanosec() + 1, "nanosec");
 					}
-					startingTimeForThisComDescr = TIME(startingTimeForThisComDescr.sec() + offset, "sec");
-					eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr.sec(), "sec"), eventId));
+					eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"), eventId));
 					mut.unlock();
 					LOG4CXX_TRACE (logger, "Adding EventID " << eventId
 							<< " at relative time " << setprecision(20) << startingTimeForThisComDescr.sec()
@@ -386,12 +386,13 @@ void *generateEventIds(void *t)
 			bool newTimeFound = false;
 			while (newTimeFound == false)
 			{
-				if (eventTimerMap.find(TIME(sTime.sec(), "sec")) == eventTimerMap.end())
+				if (eventTimerMap.find(TIME(currentTime.sec() + sTime.sec(), "sec")) == eventTimerMap.end())
 				{
 					TIME tmpTime;
-					tmpTime = TIME(sTime.sec() + currentTime.sec(), "sec");
+					tmpTime = TIME(currentTime.sec() + sTime.sec(), "sec");
 					LOG4CXX_DEBUG(logger, "Next starting time for UE " << ue
-							<< " -> BS " << bs << " in " << std::setprecision(20) << tmpTime.sec() - currentTime.sec() << "s");
+							<< " -> BS " << bs << " in " << std::setprecision(20) << tmpTime.sec() - currentTime.sec() << "s"
+							<< " total time: " << currentTime.sec());
 					eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (tmpTime, BS_UE_PAIR (bs,ue)));
 					newTimeFound = true;
 				}
