@@ -326,14 +326,14 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 					<< " Mu / Mean = " << (*latencyDescription_).gaussianMu << "ms"
 					<< "\tSigma / StdDev = " << (*latencyDescription_).gaussianSigma);
 		}
-		else if (d == "linear")
+		else if (d == "constant")
 		{
-			if (!CheckDistributionDataForConsistency(LINEAR, latencyLine))
+			if (!CheckDistributionDataForConsistency(CONSTANT, latencyLine))
 				return false;
-			(*latencyDescription_).distribution = LINEAR;
-			(*latencyDescription_).linearLatency = TIME(atof(GetLatencyValue(latencyLine, "latencyValue")), "millisec");
-			LOG4CXX_TRACE(logger, "LINEAR distribution parameters set: "
-					<< " fixed latency = " << (*latencyDescription_).linearLatency.millisec() << "ms");
+			(*latencyDescription_).distribution = CONSTANT;
+			(*latencyDescription_).constantLatency = TIME(atof(GetLatencyValue(latencyLine, "latencyValue")), "millisec");
+			LOG4CXX_TRACE(logger, "CONSTANT distribution parameters set: "
+					<< " fixed latency = " << (*latencyDescription_).constantLatency.millisec() << "ms");
 		}
 		else
 		{
@@ -372,8 +372,8 @@ bool ReadMsc::CheckDistributionDataForConsistency(DISTRIBUTION dist,
 
 	switch(dist)
 	{
-	case LINEAR:
-		if (line.find("linear") != std::string::npos)
+	case CONSTANT:
+		if (line.find("constant") != std::string::npos)
 			distFound = true;
 		if (line.find("latency") != std::string::npos)
 			distParamsFound = true;

@@ -71,8 +71,10 @@ int seed = 1,
 		numOfUesPerBs,
 		numOfBss;
 DISTRIBUTION_DEFINITION_STRUCT ueDistDef;
+NOISE_DESCRIPTION_STRUCT noiseDescrStruct;
 EVENT_MAP eventMap;
 EVENT_TIMER_MAP eventTimerMap;
+HASHED_NOISE_EVENT_ID_MAP hashedNoiseEventIdMap;
 ReadMsc readMsc;
 EventIdGenerator eventIdGenerator;
 Dictionary dictionary;
@@ -301,6 +303,7 @@ void *generateEventIds(void *t)
 			{
 				EVENT_ID_VECTOR eventIdVector;
 				// use-case ID, step, base-station ID, UE ID
+				//TODO implementing FAILURE cases (once off draw - no HMM)
 				eventIdVector = eventIdGenerator.GetEventIdForComDescr(useCaseId, readMscIt, (*eMapIt).second.first, (*eMapIt).second.second);
 				// iterate over vector (eventIdVector.size() > 1 if there was more than 1 IE in a particular primitive)
 				for (unsigned int i = 0; i < eventIdVector.size(); i++)
@@ -403,6 +406,61 @@ void *generateEventIds(void *t)
 			}
 		}
 	}
+	LOG4CXX_ERROR (logger, "generateEventIds() thread ended");
+	pthread_exit(NULL);
+}
+void *generateNoiseIds(void *t)
+{
+	HASHED_NOISE_EVENT_ID_MAP_IT hashedNoiseEventIdMapIt;
+	base_generator_type generator(seed), eventIdGenerator(seed);
+	boost::asio::io_service io_service;
+	boost::asio::deadline_timer timer(io_service);
+	TIME sTime,
+	tvSec,
+	tvNsec,
+	currentTime;
+	EVENT_ID eId;
+	timespec ts;
+	for (;;)
+	{
+		// Get next time
+		if (noiseDescrStruct.distribution.distribution == UNIFORM_REAL)
+		{
+			boost::uniform_real<> uni_dist_real (noiseDescrStruct.distribution.latencyMinimum.sec(), noiseDescrStruct.distribution.latencyMaximum.sec());
+			boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
+			sTime = TIME(uni_real(), "sec");
+		}
+		else if (noiseDescrStruct.distribution.distribution == GAUSSIAN)
+		{
+			boost::normal_distribution<> gaussian_dist (noiseDescrStruct.distribution.gaussianMu, noiseDescrStruct.distribution.gaussianSigma);
+			boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian(generator, gaussian_dist);
+			sTime = TIME(gaussian(), "sec");
+		}
+		else
+		{
+			LOG4CXX_ERROR(logger, "Noise distribution " << noiseDescrStruct.distribution.distribution << " has not been implemented");
+			break;
+		}
+		//Get Noise EventID
+		boost::uniform_int<> uni_dist_int (0, hashedNoiseEventIdMap.size() - 1);
+		boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (eventIdGenerator, uni_dist_int);
+		hashedNoiseEventIdMapIt = hashedNoiseEventIdMap.find(uni_int());
+		clock_gettime(CLOCK_REALTIME, &ts);
+		tvNsec = TIME(ts.tv_nsec, "nanosec");
+		tvSec = TIME(ts.tv_sec, "sec");
+		currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
+		TIME offset = TIME(1, "nanosec");
+		mut.lock();
+		while (eventMap.find(TIME(currentTime.sec() + sTime.sec(), "sec")) != eventMap.end())
+			sTime = TIME(sTime.sec() + offset.sec(),"sec");
+		eventMap.insert(pair <TIME, EVENT_ID> (TIME(currentTime.sec() + sTime.sec(), "sec"), (*hashedNoiseEventIdMapIt).second));
+		mut.unlock();
+		LOG4CXX_TRACE(logger, "Uncorrelated noise EventID added to eventMap at time " << std::setprecision(20) << currentTime.sec() + sTime.sec() << "s");
+		LOG4CXX_DEBUG(logger, "Waiting " << sTime.sec() << " seconds before generating next uncorrelated noise EventID");
+		timer.expires_from_now(boost::posix_time::microseconds(sTime.microsec()));
+		timer.wait();
+	}
+	LOG4CXX_ERROR (logger, "generateNoiseIds() thread ended");
 	pthread_exit(NULL);
 }
 /**
@@ -462,11 +520,10 @@ void *sendStream(void *t)
 		while (eventMapIt != eventMap.end() && eventMapIt->first.sec() < currentTime.sec())
 		{
 			string payload;
-
 			mut.lock();
 			payload = (*eventMapIt).second;
 			if (streamToFileFlag)
-				file << setprecision(PRECISION) << currentTime.sec() - emulationStartTime.sec() << "\t" << payload << endl;
+				file << std::setprecision(PRECISION) << (double)(currentTime.sec() - emulationStartTime.sec()) << "\t" << payload << endl;
 			LOG4CXX_TRACE(logger, "Sending EventID " << payload);
 			eventMap.erase(eventMapIt);
 			mut.unlock();
@@ -493,6 +550,7 @@ void *sendStream(void *t)
 
 	file.close();
 
+	LOG4CXX_ERROR (logger, "sendEventIds() thread ended");
 	pthread_exit(NULL);
 }
 
@@ -541,13 +599,17 @@ bool readConfiguration(char *configFileName_,
 		const char *dist;
 		LOG4CXX_INFO(logger,"Reading libconfig configuration file " << configFileName_);
 		const Setting &openmscConfig = root["openmscConfig"];
-		openmscConfig.lookupValue("numOfUesPerBs", *numOfUesPerBs_);
-		openmscConfig.lookupValue("numOfBss", *numOfBss_);
-		openmscConfig.lookupValue("ueActivity-Dist", dist);
-
-		if (strcmp(dist,"linear") == 0)
+		if (!(openmscConfig.lookupValue("numOfUesPerBs", *numOfUesPerBs_)
+				&& openmscConfig.lookupValue("numOfBss", *numOfBss_)
+				&& openmscConfig.lookupValue("ueActivity-Dist", dist)))
 		{
-			ueDistDef.distribution = LINEAR;
+			LOG4CXX_ERROR (logger, "Parameters numOfUesPerBs, numOfBss and/or ueActivity-Dist could not be read");
+			return false;
+		}
+
+		if (strcmp(dist,"constant") == 0)
+		{
+			ueDistDef.distribution = CONSTANT;
 		}
 		else if (strcmp(dist,"exponential") == 0)
 		{
@@ -598,6 +660,88 @@ bool readConfiguration(char *configFileName_,
 			return false;
 		}
 		openmscConfig.lookupValue("seed", seed);
+
+		// Read noise config (if it exists)
+		try
+		{
+			const Setting &noiseUncorrelated = root["openmscConfig"]["noise"]["uncorrelated"];
+			int count = noiseUncorrelated.getLength();
+
+			LOG4CXX_INFO(logger, count << " uncorrelated noise parameters found");
+
+			for(int i = 0; i < count; ++i)
+			{
+				const Setting &noise = noiseUncorrelated[i];
+				string dist;
+				EVENT_ID eventIdRangeMin, eventIdRangeMax;
+				const char * distMin, * distMax;
+
+				if(!(noise.lookupValue("dist", dist)
+						&& noise.lookupValue("eventIdRangeMin", eventIdRangeMin)
+						&& noise.lookupValue("eventIdRangeMax", eventIdRangeMax)))
+				{
+					LOG4CXX_ERROR (logger, "Could not read dist, eventIdRangeMin and/or eventIdRangeMax");
+					return false;
+				}
+
+				noiseDescrStruct.eventIdRangeMin = eventIdRangeMin;
+				noiseDescrStruct.eventIdRangeMax = eventIdRangeMax;
+				int range = atoi(noiseDescrStruct.eventIdRangeMax.c_str()) - atoi(noiseDescrStruct.eventIdRangeMin.c_str());
+				//TODO get real length of integer variable on the host OpenMSC is running
+				if (range > 65536)
+				{
+					LOG4CXX_ERROR(logger, "Noise EventID range is too large to be handled by OpenMSC at the moment.");
+					return false;
+				}
+				//TODO proper parsing of strings to unsigned long long numbers and the iteration over em
+				for (int i = 0; i < range; i++)
+				{
+					ostringstream convert;
+					convert << atoi(noiseDescrStruct.eventIdRangeMin.c_str()) + i;
+					hashedNoiseEventIdMap.insert(pair<int, EVENT_ID> (i,convert.str()));
+					//cout << "Adding " << i << " - " << convert.str() << endl;
+				}
+				// Generating the time for the next random noise EventID
+				if (dist.find("uniform_real") != string::npos)
+				{
+					if (noise.lookupValue("distMin", distMin) && noise.lookupValue("distMax", distMax))
+					{
+						noiseDescrStruct.distribution.distribution = UNIFORM_REAL;
+						noiseDescrStruct.distribution.latencyMinimum = TIME(atof(distMin), "sec");
+						noiseDescrStruct.distribution.latencyMaximum = TIME(atof(distMax), "sec");
+					}
+					else
+					{
+						LOG4CXX_ERROR (logger, "Cannot read distMin (" << distMin << ") and/or distMax (" << distMax << ") parameter for UNIFORM_REAL distribution in openmsc.cfg");
+						return false;
+					}
+				}
+				else if (dist.find("gaussian") != string::npos)
+				{
+					const char * mu, *sigma;
+					if (noise.lookupValue("distMu", mu) && noise.lookupValue("distSigma", sigma))
+					{
+						noiseDescrStruct.distribution.distribution = GAUSSIAN;
+						noiseDescrStruct.distribution.gaussianMu = atof(mu);
+						noiseDescrStruct.distribution.gaussianSigma = atof(sigma);
+					}
+					else
+					{
+						LOG4CXX_ERROR (logger, "Cannot read mu (" << mu << ") and/or sigma (" << sigma << ") parameter for GAUSSIAN distribution in openmsc.cfg");
+						return false;
+					}
+				}
+				else {
+					LOG4CXX_ERROR (logger, "Starting time distribution " << dist << " has not been implemented for uncorrelated noise EventIDs");
+					return false;
+				}
+			}
+		}
+		catch(const SettingNotFoundException &nfex)
+		{
+			LOG4CXX_ERROR (logger, "Noise declaration in openmsc.cfg either not given or could not be read");
+			return false;
+		}
 	}
 	catch(const SettingNotFoundException &nfex)
 	{
@@ -671,7 +815,7 @@ int main (int argc, char** argv)
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-	LOG4CXX_DEBUG(logger, "Creating generateEventIds thread");
+	LOG4CXX_INFO(logger, "Creating generateEventIds thread");
 	rc = pthread_create(&threads[0], NULL, generateEventIds, (void *)i );
 
 	if (rc){
@@ -679,11 +823,19 @@ int main (int argc, char** argv)
 		exit(-1);
 	}
 
-	LOG4CXX_DEBUG(logger, "Creating sendStream thread");
+	LOG4CXX_INFO(logger, "Creating sendStream thread");
 	rc = pthread_create(&threads[1], NULL, sendStream, (void *)i );
 
 	if (rc){
 		LOG4CXX_ERROR(logger,"Unable to create sendStream thread, " << rc);
+		exit(-1);
+	}
+
+	LOG4CXX_INFO(logger, "Creating generateNoiseIds thread");
+	rc = pthread_create(&threads[1], NULL, generateNoiseIds, (void *)i );
+
+	if (rc){
+		LOG4CXX_ERROR(logger,"Unable to create generateNoiseIds thread, " << rc);
 		exit(-1);
 	}
 

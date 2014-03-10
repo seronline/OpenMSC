@@ -12,16 +12,18 @@ msc {
 	# Use-Cases
 	--- [ label = "Success", textcolor="#c74f10", linecolour="#c74f10" ]; # P = {0.8} 
 
-	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4.0}
+	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {constant} latencyValue = {0.1}
 	
-	BS => UE [ label = "RRC-CONNECTION_SETUP(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {gaussian} latencyMu = {2.0} latencySigma = {3.0}
-	UE => BS [ label = "RRC-CONNECTION_COMPLETE(UE_ID)",textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {linear} latencyValue = {1.0}
+	BS => UE [ label = "RRC-CONNECTION_SETUP(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {constant} latencyValue={0.1}
+	UE => BS [ label = "RRC-CONNECTION_COMPLETE(UE_ID)",textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {constant} latencyValue = {0.2}
 
-	BS => UE [ label = "RRC-RADIO_BEARER_SETUP(UE_ID)",textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4.0}
-	UE => BS [ label = "RRC-RADIO_BEARER_SETUP_COMPLETE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4.0}
+	BS => UE [ label = "RRC-RADIO_BEARER_SETUP(UE_ID)",textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {constant} latencyValue = {0.3}
+	UE => BS [ label = "RRC-RADIO_BEARER_SETUP_COMPLETE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {constant} latencyValue = {0.4}
 
-	BS => UE [ label = "RRC-CONNECTION_RELEASE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4.0}
-	UE => BS [ label = "RRC-CONNECTION_RELEASE_COMPLETE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4.0}
+	BS => UE [ label = "RRC-CONNECTION_RELEASE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {constant} latencyValue = {0.5}
+	UE => BS [ label = "RRC-CONNECTION_RELEASE_COMPLETE(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {constant} latencyValue = {0.6}
 
 	--- [ label = "Failure", textcolor="#c74f10", linecolour="#c74f10" ]; #P = {0.15}
+	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)", textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {exponential} latencyLambda = {4.0}
+	BS => UE [ label = "RRC-CONNECTION_FAILURE(UE_ID)",textcolor="#c74f10", linecolour="#c74f10" ]; # latencyDist = {constant} latencyValue = {1.0}
 }

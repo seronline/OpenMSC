@@ -100,8 +100,8 @@ TIME EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step, base_generat
 	COMMUNICATION_DESCRIPTION_STRUCT comDescrStruct;
 	TIME latency;
 	comDescrStruct = (*readMsc_).GetParticularCommunicationDescription(ucId, step);
-	if (comDescrStruct.latencyDescription.distribution == LINEAR)
-		latency = TIME(comDescrStruct.latencyDescription.linearLatency.millisec(), "millisec");
+	if (comDescrStruct.latencyDescription.distribution == CONSTANT)
+		latency = TIME(comDescrStruct.latencyDescription.constantLatency.millisec(), "millisec");
 	else if (comDescrStruct.latencyDescription.distribution == EXPONENTIAL)
 	{
 		boost::exponential_distribution<> exp_dist (comDescrStruct.latencyDescription.exponentialLambda);

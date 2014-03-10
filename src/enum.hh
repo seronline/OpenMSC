@@ -1,5 +1,5 @@
 enum latencyDistributionEnum {
-	LINEAR = 1,
+	CONSTANT = 1,
 	EXPONENTIAL,
 	UNIFORM_REAL,
 	UNIFORM_INTEGER,

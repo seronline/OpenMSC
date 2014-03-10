@@ -191,7 +191,7 @@ typedef struct distributionDefinition {
 	TIME latencyMaximum;
 	TIME uniformMin;						/** Start time for the uniform distribution */
 	TIME uniformMax;						/** Stop time for the uniform distribution */
-	TIME linearLatency;						/** Fixed time for latency of a communication descriptor */
+	TIME constantLatency;					/** Fixed time for latency of a communication descriptor */
 	float gammaAlpha;						/** scale gamma parameter in seconds */
 	float gammaBeta;						/** shape gamma parameter (probability) */
 	int erlangAlpha;						/** scale erlang parameter in seconds */
@@ -214,6 +214,15 @@ typedef struct communicationDescription {
 	DISTRIBUTION_DEFINITION_STRUCT latencyDescription;	/** Struct holding information about the communication latency between source and destination */
 } COMMUNICATION_DESCRIPTION_STRUCT;
 
+/**
+ * \typedef NOISE_DESCRIPTION_STRUCT
+ * \brief struct to hold noise definition from openmsc.cfg 'noise = {uncorrelated()}'
+ */
+typedef struct noiseDescription {
+	EVENT_ID	eventIdRangeMin,
+				eventIdRangeMax;
+	DISTRIBUTION_DEFINITION_STRUCT distribution;
+} NOISE_DESCRIPTION_STRUCT;
 /**
  * \typedef MSC_LINE_VECTOR
  * \brief string vector for a line from the MSC file
@@ -249,7 +258,16 @@ typedef map <TIME,EVENT_ID> EVENT_MAP;
  * \brief TIME <> BS_UE_PAIR map
  */
 typedef map <TIME,BS_UE_PAIR> EVENT_TIMER_MAP;
-
+/**
+ * \typedef HASHED_NOISE_EVENT_ID_MAP
+ * \brief Hashed integer number for string Noise EventID representation
+ */
+typedef map <int, EVENT_ID> HASHED_NOISE_EVENT_ID_MAP;
+/**
+ * \typedef HASHED_NOISE_EVENT_ID_MAP_IT
+ * \brief Iterator for HASHED_NOISE_EVENT_ID_MAP
+ */
+typedef map <int, EVENT_ID>::iterator HASHED_NOISE_EVENT_ID_MAP_IT;
 /**
  * \typedef EVENT_MAP_IT
  * \brief Iterator for TIME <> EVENT_ID map
@@ -347,4 +365,4 @@ typedef boost::minstd_rand base_generator_type;
  */
 typedef boost::asio::time_traits<boost::posix_time::ptime> time_traits_t;
 
-#define PRECISION 5
+#define PRECISION 6
