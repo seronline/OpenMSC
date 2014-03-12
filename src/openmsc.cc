@@ -254,7 +254,7 @@ void *generateEventIds(void *t)
 
 				while (newTimeFound == false)
 				{
-					if (eventTimerMap.find(TIME(currentTime.sec() + sTime.sec(), "sec")) == eventTimerMap.end())
+					if (eventTimerMap.find(TIME((currentTime.sec() + sTime.sec()), "sec")) == eventTimerMap.end())
 					{
 						LOG4CXX_DEBUG(logger, "Initial starting time for UE " << ue
 								<< " -> BS " << bs << " = " << std::setprecision(20) << (sTime.sec() + currentTime.sec())
@@ -264,7 +264,7 @@ void *generateEventIds(void *t)
 					}
 					else
 					{
-						TIME sTmp = TIME(1, "nanosec");
+						TIME sTmp = TIME(1, "millisec");
 						sTime = TIME(sTime.sec() + sTmp.sec(), "sec");
 					}
 				}
@@ -400,7 +400,7 @@ void *generateEventIds(void *t)
 					newTimeFound = true;
 				}
 				else {
-					TIME sTmp = TIME(1, "nanosec");
+					TIME sTmp = TIME(1, "millisec");
 					sTime = TIME(sTime.sec() + sTmp.sec(), "sec");
 				}
 			}
@@ -739,8 +739,7 @@ bool readConfiguration(char *configFileName_,
 		}
 		catch(const SettingNotFoundException &nfex)
 		{
-			LOG4CXX_ERROR (logger, "Noise declaration in openmsc.cfg either not given or could not be read");
-			return false;
+			LOG4CXX_INFO (logger, "Noise declaration in openmsc.cfg either not given or could not be read");
 		}
 	}
 	catch(const SettingNotFoundException &nfex)
