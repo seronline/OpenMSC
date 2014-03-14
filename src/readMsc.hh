@@ -47,6 +47,12 @@ public:
 	 */
 	int GetNumOfUseCases();
 	/**
+	 * Obtain the probability for a given use-case ID
+	 * @param useCaseId The integer number for the use-case ID
+	 * @return The probability for the given use-case ID
+	 */
+	USE_CASE_ID GetUseCaseId4Probability(PROBABILITY p);
+	/**
 	 * Obtain a copy of a particular communication description struct
 	 * @param useCaseId The use-case ID for which the data should be looked up
 	 * @param step The step within the use-case which should be returned
@@ -201,6 +207,7 @@ private:
 	IDENTIFIER GetProtocolTypeIdentifier(PROTOCOL_TYPE protocolType);
 
 	USE_CASE_DESCRIPTION_MAP useCaseDescrMap; /** map initialiser holding the use-case ID and a vector of all communications*/
+	USE_CASE_PROBABILITY_MAP useCaseProbabilityMap; /** TODO */
 	NETWORK_ELEMENTS_MAP networkElementsMap;	/** TODO */
 	PRIMITIVE_NAMES_MAP primitiveNamesMap;		/** TODO */
 	PROTOCOL_TYPES_MAP protocolTypesMap;		/** TODO */
@@ -209,7 +216,6 @@ private:
 	PROTOCOL_TYPES_COUNTER protocolTypesCounter;	/** TODO */
 	PRIMITIVE_NAMES_COUNTER primitiveNamesCounter;	/** TODO */
 	INFORMATION_ELEMENTS_COUNTER informationElementsCounter;	/** TODO */
-
 	Dictionary *dictionary_;	/** Pointer to Dictionary class */
 	log4cxx::LoggerPtr logger;	/** Pointer to LoggerPtr class */
 	int *numOfUesPerBs_;			/** Number of UEs attached to each BS */

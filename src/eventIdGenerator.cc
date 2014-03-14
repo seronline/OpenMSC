@@ -39,16 +39,16 @@ void EventIdGenerator::InitLog(log4cxx::LoggerPtr l)
 	logger = l;
 }
 
-USE_CASE_ID EventIdGenerator::DetermineUseCaseId()
+USE_CASE_ID EventIdGenerator::DetermineUseCaseId(base_generator_type *gen)
 {
 	USE_CASE_ID useCaseId;
 	int numOfUseCases;
 	timespec seed;
 	numOfUseCases = (*readMsc_).GetNumOfUseCases();
-//TODO read probabilities from openmsc.msc file and determine useCaseId based on this
-	useCaseId = 1;
+	boost::uniform_real<> uni_dist_real (0, 1);
+	boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (*gen, uni_dist_real);
 
-	return useCaseId;
+	return (*readMsc_).GetUseCaseId4Probability(uni_real());
 }
 
 EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,

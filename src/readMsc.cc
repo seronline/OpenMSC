@@ -67,8 +67,7 @@ int ReadMsc::ReadMscConfigFile ()
 		{
 			MSC_LINE_VECTOR caseConfig;
 			boost::split (caseConfig, line, boost::is_any_of("\""));
-
-			// checking for use-case
+			// Reading use-case and given probability
 			for (unsigned i = 0; i < caseConfig.size(); i++)
 			{
 				if (caseConfig.at(i) == "Success")
@@ -81,9 +80,8 @@ int ReadMsc::ReadMscConfigFile ()
 					LOG4CXX_DEBUG(logger, "New Failure use-case found");
 					useCaseId++;
 				}
+				useCaseProbabilityMap.insert(pair<USE_CASE_ID, PROBABILITY> (useCaseId,atof(GetLatencyValue(line, "Probability"))));
 			}
-
-			// TODO reading probabilities for use-cases
 		}
 
 		// Get message types and latencies for communications
@@ -139,7 +137,21 @@ int ReadMsc::GetNumOfUseCases()
 {
 	return useCaseDescrMap.size();
 }
+USE_CASE_ID ReadMsc::GetUseCaseId4Probability(PROBABILITY p)
+{
+	USE_CASE_PROBABILITY_MAP_IT it;
+	PROBABILITY pTmp = 0.0;
 
+	for(it = useCaseProbabilityMap.begin(); it != useCaseProbabilityMap.end(); it++)
+	{
+		if(pTmp <= p)
+			pTmp += (*it).second;
+		else
+			break;
+	}
+	LOG4CXX_DEBUG(logger, "For given probability " << p << " use-case ID = " << (*it).first);
+	return (*it).first;
+}
 bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		NETWORK_ELEMENT src,
 		NETWORK_ELEMENT dst,

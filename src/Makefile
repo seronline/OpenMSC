@@ -27,9 +27,10 @@ receiverDummy.o: receiverDummy.cc
 	
 clean:
 	$(RM) $(OBJS) ../bin/openmsc ../bin/receiverDummy
+	$(RM) $(OBJS) /usr/bin/openmsc /usr/bin/receiverDummy
 
 install:
-	@echo Nothing to do! Just run the binary from here: ./openmsc -?
+	cp ../bin/openmsc /usr/bin
 	
 all:
 	make clean

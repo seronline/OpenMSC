@@ -49,6 +49,7 @@
 #include <log4cxx/fileappender.h>
 #include <log4cxx/simplelayout.h>
 #include "log4cxx/consoleappender.h"
+#include <limits>
 
 using namespace libconfig;
 
@@ -80,9 +81,11 @@ EventIdGenerator eventIdGenerator;
 Dictionary dictionary;
 IP_ADDRESS ipAddress;
 PORT port;
-bool TCP = false;
-bool UDP = true;
-bool streamToFileFlag = false;
+bool TCP = false,
+UDP = true,
+streamToFileFlag = false,
+PRINT_EVENT_ID_RATE = false;
+const int MAX_INT = std::numeric_limits<int>::max();
 // log4cxx
 log4cxx::FileAppender * fileAppender = new log4cxx::FileAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()), "openmsc.log", false);
 log4cxx::ConsoleAppender * consoleAppender = new log4cxx::ConsoleAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()));
@@ -92,6 +95,7 @@ log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("logger");
 // ARGP
 const char *argp_program_bug_address = "Sebastian Robitzsch <srobitzsch@gmail.com>";
 const char *argp_program_version = "OpenMSC Version 0.2";
+
 /* Program documentation. */
 static char doc[] = "OpenMSC -- MSCgen-Based Control Plane Network Trace Emulator";
 /* A description of the arguments we accept. */
@@ -149,6 +153,9 @@ static int parse_opt (
 		UDP = true;
 		TCP = false;
 		break;
+	case 'r':
+		PRINT_EVENT_ID_RATE=true;
+		break;
 	}
 
 	return 0;
@@ -168,7 +175,8 @@ void *generateEventIds(void *t)
 	boost::asio::io_service io_service;
 	boost::asio::deadline_timer timer(io_service);
 	base_generator_type generator(seed),
-			generatorComDescriptor(seed);
+			generatorComDescriptor(seed),
+			generatorUseCase(seed);
 	UE_ID ue;
 	BS_ID bs;
 	TIME remainingWaitingTime,
@@ -277,7 +285,6 @@ void *generateEventIds(void *t)
 		{
 			ostringstream convert;
 			USE_CASE_ID useCaseId;
-			useCaseId = eventIdGenerator.DetermineUseCaseId();
 			eMapIt = eventTimerMap.begin();
 			ue = (*eMapIt).second.second;
 			bs = (*eMapIt).second.first;
@@ -289,7 +296,8 @@ void *generateEventIds(void *t)
 			if ((*eMapIt).first.sec() > currentTime.sec())
 			{
 				TIME tmpTime = TIME((*eMapIt).first.sec() - currentTime.sec(), "sec");
-				LOG4CXX_TRACE(logger, "Waiting " << std::setprecision(20) << tmpTime.sec() << "s before generating another communication description");
+				LOG4CXX_TRACE(logger, "Waiting " << std::setprecision(20) << tmpTime.sec()
+						<< "s before generating another communication description");
 				timer.expires_from_now(boost::posix_time::microseconds(tmpTime.microsec()));
 				timer.wait();
 			}
@@ -298,12 +306,11 @@ void *generateEventIds(void *t)
 			tvNsec = TIME(ts.tv_nsec, "nanosec");
 			tvSec = TIME(ts.tv_sec, "sec");
 			TIME startingTimeForThisComDescr = TIME(tvSec.sec() + tvNsec.sec(), "sec");
-
+			useCaseId = eventIdGenerator.DetermineUseCaseId(&generatorUseCase);
 			for (int readMscIt = 0; readMscIt < readMsc.GetMscLength(useCaseId); readMscIt++)
 			{
 				EVENT_ID_VECTOR eventIdVector;
 				// use-case ID, step, base-station ID, UE ID
-				//TODO implementing FAILURE cases (once off draw - no HMM)
 				eventIdVector = eventIdGenerator.GetEventIdForComDescr(useCaseId, readMscIt, (*eMapIt).second.first, (*eMapIt).second.second);
 				// iterate over vector (eventIdVector.size() > 1 if there was more than 1 IE in a particular primitive)
 				for (unsigned int i = 0; i < eventIdVector.size(); i++)
@@ -486,6 +493,8 @@ void *sendStream(void *t)
 	tcp::resolver::query queryTcp(tcp::v4(), ipAddress.c_str(), port.c_str());
 	tcp::resolver::iterator iteratorTcp = resolverTcp.resolve(queryTcp);
 	tcp::socket tcpSocket(io_serviceTcp);
+	TIME printingRateTime;
+	unsigned int countEventIds = 0;
 	// Opening stream file if option was selected
 	if (streamToFileFlag)
 	{
@@ -508,6 +517,7 @@ void *sendStream(void *t)
 	TIME tvSec(ts.tv_sec, "sec");
 	double s = tvSec.sec() + tvNsec.sec();
 	TIME emulationStartTime(s, "sec");
+	printingRateTime = TIME(s+1.0, "sec");
 	for(;;)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
@@ -545,6 +555,15 @@ void *sendStream(void *t)
 				LOG4CXX_ERROR(logger, "Neither UDP nor TCP was selected");
 
 			eventMapIt = eventMap.begin();
+
+			if (PRINT_EVENT_ID_RATE && (printingRateTime.sec() < currentTime.sec()))
+			{
+				printingRateTime = TIME(currentTime.sec() + 1.0, "sec");
+				LOG4CXX_INFO(logger, "EventID Rate: " << countEventIds << "/s");
+				countEventIds = 0;
+			}
+			else
+				countEventIds++;
 		}
 	}
 
@@ -687,10 +706,11 @@ bool readConfiguration(char *configFileName_,
 				noiseDescrStruct.eventIdRangeMin = eventIdRangeMin;
 				noiseDescrStruct.eventIdRangeMax = eventIdRangeMax;
 				int range = atoi(noiseDescrStruct.eventIdRangeMax.c_str()) - atoi(noiseDescrStruct.eventIdRangeMin.c_str());
-				//TODO get real length of integer variable on the host OpenMSC is running
-				if (range > 65536)
+				// Check if noise EventIDs are largern than int type
+
+				if (atoll(noiseDescrStruct.eventIdRangeMax.c_str()) > MAX_INT)
 				{
-					LOG4CXX_ERROR(logger, "Noise EventID range is too large to be handled by OpenMSC at the moment.");
+					LOG4CXX_ERROR(logger, "Noise EventID range is larger than " << MAX_INT << " and cannot be handled by OpenMSC at the moment.");
 					return false;
 				}
 				//TODO proper parsing of strings to unsigned long long numbers and the iteration over em
@@ -779,6 +799,7 @@ int main (int argc, char** argv)
 
 	struct argp_option options[] =
 	{
+		{ 0, 'r', 0, 0, "Print 'EventIDs per second' rate to stdout using INFO logging level"},
 		{ "TCP", 't', 0, 0, "Using IPv4 over TCP to communicate with destination module"},
 		{ "UDP", 'u', 0, 0, "Using IPv4 over UDP to communicate with destination module"},
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},

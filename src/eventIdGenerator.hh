@@ -39,7 +39,7 @@ public:
 	 * Determine the use-case ID based on the probabilities defined in openmsc.msc
 	 * @return The use-case ID of type USE_CASE_ID
 	 */
-	USE_CASE_ID DetermineUseCaseId();
+	USE_CASE_ID DetermineUseCaseId(base_generator_type *gen);
 	/**
 	 * For a given use-case and step within this use-case, this function generates the corresponding EventId.
 	 *

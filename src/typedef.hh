@@ -346,7 +346,13 @@ typedef map <USE_CASE_ID, COMMUNICATION_DESCRIPTION_VECTOR>::iterator USE_CASE_D
  * The probability is read from the openmsc.msc file
  */
 typedef map <USE_CASE_ID, PROBABILITY> USE_CASE_PROBABILITY_MAP;
-
+/**
+ * \typedef USE_CASE_PROBABILITY_MAP_IT
+ * \brief std::map iterator for USE_CASE_PROBABILITY_MAP
+ *
+ * The probability is read from the openmsc.msc file
+ */
+typedef map <USE_CASE_ID, PROBABILITY>::iterator USE_CASE_PROBABILITY_MAP_IT;
 /**
  * \typedef Time
  * \brief boost::posix_time definition
