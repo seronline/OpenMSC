@@ -76,13 +76,14 @@ EVENT_ID_VECTOR EventIdGenerator::GetEventIdForComDescr(USE_CASE_ID useCaseId,
 		ostringstream convert;
 		informationElementId = (*readMsc_).TranslateInformationElement2ID(comDescrStruct.informationElements.at(i));
 		// check if IE == UE_ID
-//TODO proper parsing of IE values from openmsc.msc and openmsc.cfg
 		if (comDescrStruct.informationElements.at(i) == "UE_ID")
 			informationElementValueId = ueId;
 		else if (comDescrStruct.informationElements.at(i) == "BS_ID")
 			informationElementValueId = bsId;
 		else
-			informationElementValueId = 999; // dummy value (see to-do above)
+		{
+			informationElementValueId = (*readMsc_).GetIeValue(comDescrStruct.informationElements.at(i));
+		}
 		// Generating the EventID
 		convert << setfill('0') << setw(5) << sourceId
 				<< setw(5) << destinationId

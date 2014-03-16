@@ -20,6 +20,8 @@ msc {
 	BS => UE [ label = "RRC-RADIO_BEARER_SETUP(UE_ID)" ]; # latencyDist = {constant} latencyValue = {300.0}
 	UE => BS [ label = "RRC-RADIO_BEARER_SETUP_COMPLETE(UE_ID)" ]; # latencyDist = {constant} latencyValue = {400.0}
 
+	UE -> BS [ label = "NBAP-DEDICATED_MEASUREMENT_REPORT(SIRErrorValue)" ]; # latencyDist = {gaussian} latencyMu = {100.0} latencySigma = {1.0}
+
 	BS => UE [ label = "RRC-CONNECTION_RELEASE(UE_ID)" ]; # latencyDist = {constant} latencyValue = {500.0}
 	UE => BS [ label = "RRC-CONNECTION_RELEASE_COMPLETE(UE_ID)" ]; # latencyDist = {constant} latencyValue = {600.0}
 

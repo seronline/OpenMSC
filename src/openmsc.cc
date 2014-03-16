@@ -306,36 +306,87 @@ void *generateEventIds(void *t)
 			tvNsec = TIME(ts.tv_nsec, "nanosec");
 			tvSec = TIME(ts.tv_sec, "sec");
 			TIME startingTimeForThisComDescr = TIME(tvSec.sec() + tvNsec.sec(), "sec");
+			EVENT_ID_VECTOR eventIdVectorPeriodic;
 			useCaseId = eventIdGenerator.DetermineUseCaseId(&generatorUseCase);
+			bool PERIODIC_FLAG = false;
 			for (int readMscIt = 0; readMscIt < readMsc.GetMscLength(useCaseId); readMscIt++)
 			{
 				EVENT_ID_VECTOR eventIdVector;
 				// use-case ID, step, base-station ID, UE ID
-				eventIdVector = eventIdGenerator.GetEventIdForComDescr(useCaseId, readMscIt, (*eMapIt).second.first, (*eMapIt).second.second);
+				eventIdVector = eventIdGenerator.GetEventIdForComDescr(useCaseId, readMscIt,
+						(*eMapIt).second.first, (*eMapIt).second.second);
+				TIME latency;
+				TIME offset = TIME(0.0, "sec");
+				latency = eventIdGenerator.CalculateLatency(useCaseId, readMscIt, &generatorComDescriptor);
 				// iterate over vector (eventIdVector.size() > 1 if there was more than 1 IE in a particular primitive)
 				for (unsigned int i = 0; i < eventIdVector.size(); i++)
 				{
 					EVENT_ID eventId;
 					EVENT_MAP_IT it;
-					TIME latency;
 					eventId = eventIdVector.at(i);
-					latency = eventIdGenerator.CalculateLatency(useCaseId, readMscIt, &generatorComDescriptor);
-					startingTimeForThisComDescr = TIME(startingTimeForThisComDescr.sec() + latency.sec(), "sec");
-					mut.lock();
-					it = eventMap.begin();
-					// Finding spare time-slot in eventMap
-					TIME offset = TIME(0.0, "sec");
-					while (it != eventMap.end())
+					//Periodic communication descriptor - store it for next msc step, if this is NOT the last step
+					if (readMsc.GetPeriodicCommunicationDescriptorFlag(useCaseId,readMscIt))
 					{
-						it = eventMap.find(TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"));
-						if (it != eventMap.end())
-							offset = TIME(offset.nanosec() + 1, "nanosec");
+						eventIdVectorPeriodic = eventIdVector;
 					}
-					eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"), eventId));
-					mut.unlock();
-					LOG4CXX_TRACE (logger, "Adding EventID " << eventId
-							<< " at relative time " << setprecision(20) << startingTimeForThisComDescr.sec()
-							<< " to eventMap for communication descriptor " << readMscIt+1);
+					else
+					{
+						if (eventIdVectorPeriodic.size() > 0)
+						{
+							TIME latencyPeriodic,
+							periodicStartTime = TIME(startingTimeForThisComDescr.sec(), "sec");
+							// Generate as many periodic events as time is until the next '=>' communication descriptor
+							while ((periodicStartTime.sec() + offset.sec()) < (startingTimeForThisComDescr.sec() + latency.sec()))
+							{
+								latencyPeriodic = eventIdGenerator.CalculateLatency(useCaseId, readMscIt-1,
+										&generatorComDescriptor);
+								periodicStartTime = TIME(periodicStartTime.sec() + latencyPeriodic.sec(), "sec");
+								for (int eventIdVectorPeriodicIt = 0; eventIdVectorPeriodicIt < eventIdVectorPeriodic.size(); eventIdVectorPeriodicIt++)
+								{
+									mut.lock();
+									it = eventMap.begin();
+									// Finding spare time-slot in eventMap
+									while (it != eventMap.end())
+									{
+										it = eventMap.find(TIME(periodicStartTime.sec() + offset.sec(), "sec"));
+										if (it != eventMap.end())
+											offset = TIME(offset.millisec() + 1, "millisec");
+									}
+									// just make sure that the new time is still smaller than the starting time for the next comm descriptor
+									if ((periodicStartTime.sec() + offset.sec())
+											< (startingTimeForThisComDescr.sec() + latency.sec()))
+									{
+										eventMap.insert(TIME_EVENT_ID_PAIR (TIME(periodicStartTime.sec() + offset.sec(), "sec"),
+												eventIdVectorPeriodic.at(eventIdVectorPeriodicIt)));
+										LOG4CXX_TRACE (logger, "Adding periodic EventID "
+												<< eventIdVectorPeriodic.at(eventIdVectorPeriodicIt)
+												<< " at relative time " << setprecision(20) << periodicStartTime.sec() + offset.sec()
+												<< " to eventMap for communication descriptor " << readMscIt);
+									}
+									mut.unlock();
+								}
+								// get the same periodic EventID but with an updated IE value (in case it was not constant)
+								eventIdVectorPeriodic = eventIdGenerator.GetEventIdForComDescr(useCaseId, readMscIt-1,
+										(*eMapIt).second.first, (*eMapIt).second.second);
+							}
+							eventIdVectorPeriodic.clear();
+						}
+						startingTimeForThisComDescr = TIME(startingTimeForThisComDescr.sec() + latency.sec(), "sec");
+						mut.lock();
+						it = eventMap.begin();
+						// Finding spare time-slot in eventMap
+						while (it != eventMap.end())
+						{
+							it = eventMap.find(TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"));
+							if (it != eventMap.end())
+								offset = TIME(offset.millisec() + 1, "millisec");
+						}
+						eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"), eventId));
+						mut.unlock();
+						LOG4CXX_TRACE (logger, "Adding EventID " << eventId
+								<< " at relative time " << setprecision(20) << startingTimeForThisComDescr.sec()
+								<< " to eventMap for communication descriptor " << readMscIt);
+					}
 				}
 			}
 			eventTimerMap.erase(eMapIt);
@@ -534,7 +585,7 @@ void *sendStream(void *t)
 			payload = (*eventMapIt).second;
 			if (streamToFileFlag)
 				file << std::setprecision(PRECISION) << (double)(currentTime.sec() - emulationStartTime.sec()) << "\t" << payload << endl;
-			LOG4CXX_TRACE(logger, "Sending EventID " << payload);
+			LOG4CXX_TRACE(logger, "Sending EventID " << payload << " / EventID(s) in map: " << eventMap.size()-1);
 			eventMap.erase(eventMapIt);
 			mut.unlock();
 			size_t payloadLength = payload.length();
@@ -678,15 +729,60 @@ bool readConfiguration(char *configFileName_,
 			LOG4CXX_ERROR(logger,"ueActivity-Dist comprises unknown value!");
 			return false;
 		}
-		openmscConfig.lookupValue("seed", seed);
-
+		//Checking seed value
+		if(!openmscConfig.lookupValue("seed", seed))
+		{
+			LOG4CXX_ERROR(logger,"Seed value not given in openmsc.cfg");
+			return false;
+		}
+		// Read information elements
+		try
+		{
+			const Setting &informationElements = root["openmscConfig"]["informationElements"];
+			int count = informationElements.getLength();
+			LOG4CXX_DEBUG(logger, count << " information element(s) found in openmsc.cfg");
+			for(int i = 0; i < count; ++i)
+			{
+				const Setting &ie = informationElements[i];
+				string ieName, ieDist;
+				if(!(ie.lookupValue("ieName", ieName) && ie.lookupValue("ieDist", ieDist)))
+				{
+					LOG4CXX_ERROR (logger, "Could not read ieName (" << ieName << ") and/or ieDist (" << ieDist << ") in openmsc.cfg");
+					return false;
+				}
+				INFORMATION_ELEMENT_DESCRIPTION_STRUCT ieDescrStruct;
+				if (ieDist.find("gaussian") != string::npos)
+				{
+					string ieDistMu, ieDistSigma;
+					ieDescrStruct.ieValueDistDef.distribution = GAUSSIAN;
+					if (!(ie.lookupValue("ieDistMu", ieDistMu) && ie.lookupValue("ieDistSigma", ieDistSigma)))
+					{
+						LOG4CXX_ERROR(logger, "ieDistMu and/or ieDistSigma could not be read from openmsc.cfg");
+						return false;
+					}
+					ieDescrStruct.ieValueDistDef.gaussianMu = atof(ieDistMu.c_str());
+					ieDescrStruct.ieValueDistDef.gaussianSigma = atof(ieDistSigma.c_str());
+				}
+				else
+				{
+					LOG4CXX_ERROR (logger, "Unknown 'ieDist' distribution value specified in openmsc.cfg");
+						return false;
+				}
+				readMsc.AddInformationElementDescription(INFORMATION_ELEMENT_DESCRIPTION_PAIR (ieName, ieDescrStruct));
+			}
+		}
+		catch(const SettingNotFoundException &nfex)
+		{
+			LOG4CXX_ERROR(logger, "Reading informationElements definitions from openmsc.cfg failed");
+			return false;
+		}
 		// Read noise config (if it exists)
 		try
 		{
 			const Setting &noiseUncorrelated = root["openmscConfig"]["noise"]["uncorrelated"];
 			int count = noiseUncorrelated.getLength();
 
-			LOG4CXX_INFO(logger, count << " uncorrelated noise parameters found");
+			LOG4CXX_DEBUG(logger, "Uncorrelated noise definition found");
 
 			for(int i = 0; i < count; ++i)
 			{
@@ -695,11 +791,11 @@ bool readConfiguration(char *configFileName_,
 				EVENT_ID eventIdRangeMin, eventIdRangeMax;
 				const char * distMin, * distMax;
 
-				if(!(noise.lookupValue("dist", dist)
+				if(!(noise.lookupValue("distOccurrence", dist)
 						&& noise.lookupValue("eventIdRangeMin", eventIdRangeMin)
 						&& noise.lookupValue("eventIdRangeMax", eventIdRangeMax)))
 				{
-					LOG4CXX_ERROR (logger, "Could not read dist, eventIdRangeMin and/or eventIdRangeMax");
+					LOG4CXX_ERROR (logger, "Could not read distOccurrence, eventIdRangeMin and/or eventIdRangeMax");
 					return false;
 				}
 
@@ -710,21 +806,20 @@ bool readConfiguration(char *configFileName_,
 
 				if (atoll(noiseDescrStruct.eventIdRangeMax.c_str()) > MAX_INT)
 				{
-					LOG4CXX_ERROR(logger, "Noise EventID range is larger than " << MAX_INT << " and cannot be handled by OpenMSC at the moment.");
+					LOG4CXX_ERROR(logger, "Noise EventID range is larger than " << MAX_INT
+							<< " and cannot be handled by OpenMSC at the moment.");
 					return false;
 				}
-				//TODO proper parsing of strings to unsigned long long numbers and the iteration over em
 				for (int i = 0; i < range; i++)
 				{
 					ostringstream convert;
 					convert << atoi(noiseDescrStruct.eventIdRangeMin.c_str()) + i;
 					hashedNoiseEventIdMap.insert(pair<int, EVENT_ID> (i,convert.str()));
-					//cout << "Adding " << i << " - " << convert.str() << endl;
 				}
 				// Generating the time for the next random noise EventID
 				if (dist.find("uniform_real") != string::npos)
 				{
-					if (noise.lookupValue("distMin", distMin) && noise.lookupValue("distMax", distMax))
+					if (noise.lookupValue("distOccurrenceMin", distMin) && noise.lookupValue("distOccurrenceMax", distMax))
 					{
 						noiseDescrStruct.distribution.distribution = UNIFORM_REAL;
 						noiseDescrStruct.distribution.latencyMinimum = TIME(atof(distMin), "sec");
@@ -732,22 +827,24 @@ bool readConfiguration(char *configFileName_,
 					}
 					else
 					{
-						LOG4CXX_ERROR (logger, "Cannot read distMin (" << distMin << ") and/or distMax (" << distMax << ") parameter for UNIFORM_REAL distribution in openmsc.cfg");
+						LOG4CXX_ERROR (logger, "Cannot read distOccurrenceMin (" << distMin << ") and/or distOccurrenceMax (" << distMax << ") parameter for UNIFORM_REAL distribution in openmsc.cfg");
 						return false;
 					}
 				}
 				else if (dist.find("gaussian") != string::npos)
 				{
-					const char * mu, *sigma;
-					if (noise.lookupValue("distMu", mu) && noise.lookupValue("distSigma", sigma))
+					string mu, sigma;
+					if (noise.lookupValue("distOccurrenceMu", mu) && noise.lookupValue("distOccurrenceSigma", sigma))
 					{
 						noiseDescrStruct.distribution.distribution = GAUSSIAN;
-						noiseDescrStruct.distribution.gaussianMu = atof(mu);
-						noiseDescrStruct.distribution.gaussianSigma = atof(sigma);
+						noiseDescrStruct.distribution.gaussianMu = atof(mu.c_str());
+						noiseDescrStruct.distribution.gaussianSigma = atof(sigma.c_str());
 					}
 					else
 					{
-						LOG4CXX_ERROR (logger, "Cannot read mu (" << mu << ") and/or sigma (" << sigma << ") parameter for GAUSSIAN distribution in openmsc.cfg");
+						LOG4CXX_ERROR (logger, "Cannot read mu ("
+								<< mu << ") and/or sigma ("
+								<< sigma << ") parameter for GAUSSIAN distribution in openmsc.cfg");
 						return false;
 					}
 				}

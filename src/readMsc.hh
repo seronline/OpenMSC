@@ -53,6 +53,17 @@ public:
 	 */
 	USE_CASE_ID GetUseCaseId4Probability(PROBABILITY p);
 	/**
+	 * Calculate the value for an information element different from UE_ID or BS_ID.
+	 * @param ie The information element
+	 * @return The max 3 digit long integer value
+	 */
+	int GetIeValue(INFORMATION_ELEMENT ie);
+	/**
+	 * Looking up this communication descriptor whether or not this is a periodic message
+	 * @param step Indicating the step of this MSC
+	 */
+	bool GetPeriodicCommunicationDescriptorFlag(USE_CASE_ID useCaseId, int step);
+	/**
 	 * Obtain a copy of a particular communication description struct
 	 * @param useCaseId The use-case ID for which the data should be looked up
 	 * @param step The step within the use-case which should be returned
@@ -106,17 +117,25 @@ public:
 	 * @param bss_ The total number of BSs in the network
 	 */
 	void AddConfig(int *uesPerBs_, int *bss_);
+	/**
+	 * This function adds an IE description from openmsc.cfg to the INFORMATION_ELEMENT_DESCRIPTION_MAP
+	 * @param ieDescrStruct_ Pointer to the pair holding all the information for a particular IE
+	 */
+	void AddInformationElementDescription(INFORMATION_ELEMENT_DESCRIPTION_PAIR ieDescrPair);
 private:
 	/**
 	 * \brief add communication description
 	 *
 	 * Adding a single communication to the map of use-cases
 	 *
-	 * @param uc Pointer to the use-case identifier
-	 * @param src Pointer to the source network element descriptor
-	 * @param dst Pointer to the destination network element descriptor
-	 * @param mt Pointer to the message type descriptor
-	 * @param ies Pointer to a vector of information elements contained in this message
+	 * @param uc Use-case identifier
+	 * @param src Source network element
+	 * @param dst Destination network element
+	 * @param protType Message type
+	 * @param primName Primitive name
+	 * @param infElements Vector of information elements contained in this message
+	 * @param latencyDescription Latency desription for this communication descriptor
+	 * @param periodicFlag Flag indicating if this communication descriptor is a periodic one
 	 * @return boolean indicating successful/unsuccessful processing of the given data
 	 */
 	bool AddCommunicationDescription (
@@ -126,7 +145,8 @@ private:
 			PROTOCOL_TYPE protType,
 			PRIMITIVE_NAME primName,
 			INFORMATION_ELEMENT_VECTOR infElements,
-			DISTRIBUTION_DEFINITION_STRUCT latencyDescription );
+			DISTRIBUTION_DEFINITION_STRUCT latencyDescription,
+			bool periodicFlag);
 
 	/**
 	 * \brief Extracting communication description from a given line
@@ -166,7 +186,11 @@ private:
 	bool CheckDistributionDataForConsistency(
 			DISTRIBUTION dist,
 			string line );
-
+	/**
+	 * This function checks if the IE stored in COMMUNICATION_DESCRIPTION_STRUCT > informationElements
+	 * has been specified and properly parsed and stored in INFORMATION_ELEMENT_DESCRIPTION_STRUCT.
+	 */
+	bool CheckInformationElementIntegrity(INFORMATION_ELEMENT ie);
 	/**
 	 * Check if given network element is known. If not, create a new unique identifier for this network element.
 	 * @param networkElement The network element which should be checked
@@ -207,6 +231,7 @@ private:
 	IDENTIFIER GetProtocolTypeIdentifier(PROTOCOL_TYPE protocolType);
 
 	USE_CASE_DESCRIPTION_MAP useCaseDescrMap; /** map initialiser holding the use-case ID and a vector of all communications*/
+	INFORMATION_ELEMENT_DESCRIPTION_MAP ieDescrMap;	/** map holding IE information (distributions / ranges) from openmsc.cfg file */
 	USE_CASE_PROBABILITY_MAP useCaseProbabilityMap; /** TODO */
 	NETWORK_ELEMENTS_MAP networkElementsMap;	/** TODO */
 	PRIMITIVE_NAMES_MAP primitiveNamesMap;		/** TODO */
@@ -220,4 +245,5 @@ private:
 	log4cxx::LoggerPtr logger;	/** Pointer to LoggerPtr class */
 	int *numOfUesPerBs_;			/** Number of UEs attached to each BS */
 	int *numOfBss_;				/** Number of BSs in the network */
+	base_generator_type gen;
 };

@@ -81,7 +81,7 @@ void Dictionary::WriteInformationElement(INFORMATION_ELEMENT ie, IDENTIFIER id)
 	ofstream dict;
 
 	dict.open (informationElementsDict, ios::app);
-	dict << ie << "\t" << setfill('0') << setw(3) << id << endl;
+	dict << ie << "\t" << setfill('0') << setw(2) << id << endl;
 	dict.close();
 	LOG4CXX_DEBUG(logger, "Dictionary '" << informationElementsDict << "' extended with information element " << ie << " and ID " << id);
 }

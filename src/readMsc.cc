@@ -34,6 +34,13 @@
 #include <boost/foreach.hpp>
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/regex.hpp>
+#include <boost/random/linear_congruential.hpp>
+#include <boost/random/uniform_int.hpp>
+#include <boost/random/variate_generator.hpp>
+#include <boost/random/exponential_distribution.hpp>
+#include <boost/random/uniform_real.hpp>
+#include <boost/random/normal_distribution.hpp>
+#include <boost/random/gamma_distribution.hpp>
 #include <iomanip>
 #include "readMsc.hh"
 
@@ -68,7 +75,7 @@ int ReadMsc::ReadMscConfigFile ()
 			MSC_LINE_VECTOR caseConfig;
 			boost::split (caseConfig, line, boost::is_any_of("\""));
 			// Reading use-case and given probability
-			for (unsigned i = 0; i < caseConfig.size(); i++)
+			for (int i = 0; i < caseConfig.size(); i++)
 			{
 				if (caseConfig.at(i) == "Success")
 				{
@@ -86,18 +93,18 @@ int ReadMsc::ReadMscConfigFile ()
 
 		// Get message types and latencies for communications
 		boost::algorithm::split_regex(lineVector1, line, boost::regex ("=>"));
-
+		// Just checking if '<=' has not been used
+		boost::algorithm::split_regex(lineVector2, line, boost::regex ("<="));
 		if (lineVector2.size() > 1)
 		{
 			LOG4CXX_ERROR (logger, "Wrong communication description in openmsc.msc! OpenMSC only accepts SRC => DST, not DST <= SRC:\n" << line);
 			return(EXIT_FAILURE);
 		}
+
 		MSC_LINE_VECTOR lineTmp;
 
 		if (lineVector1.size() > 1)
 			lineTmp = lineVector1;
-		//else if (lineVector2.size() > 1)
-		//	lineTmp = lineVector2;
 		else
 			lineTmp.clear();
 
@@ -113,7 +120,24 @@ int ReadMsc::ReadMscConfigFile ()
 			if (!ExtractDataFromLine(lineTmp, &source, &destination, &protocolType, &primitiveName, &informationElements, &latencyDescription))
 				return(EXIT_FAILURE);
 
-			AddCommunicationDescription(useCaseId, source, destination, protocolType, primitiveName, informationElements, latencyDescription);
+			AddCommunicationDescription(useCaseId, source, destination, protocolType, primitiveName, informationElements, latencyDescription, false);
+		}
+		// Read periodic communications
+		lineVector1.clear();
+		boost::algorithm::split_regex(lineVector1, line, boost::regex ("->"));
+		if (lineVector1.size() > 1)
+		{
+			NETWORK_ELEMENT source, destination;
+			MSC_LINE_VECTOR mscLine;
+			PRIMITIVE_NAME primitiveName;
+			PROTOCOL_TYPE protocolType;
+			INFORMATION_ELEMENT_VECTOR informationElements;
+			DISTRIBUTION_DEFINITION_STRUCT latencyDescription;
+			lineTmp = lineVector1;
+			if (!ExtractDataFromLine(lineTmp, &source, &destination, &protocolType, &primitiveName, &informationElements, &latencyDescription))
+				return(EXIT_FAILURE);
+
+			AddCommunicationDescription(useCaseId, source, destination, protocolType, primitiveName, informationElements, latencyDescription, true);
 		}
 	}
 
@@ -152,13 +176,58 @@ USE_CASE_ID ReadMsc::GetUseCaseId4Probability(PROBABILITY p)
 	LOG4CXX_DEBUG(logger, "For given probability " << p << " use-case ID = " << (*it).first);
 	return (*it).first;
 }
+int ReadMsc::GetIeValue(INFORMATION_ELEMENT ie)
+{
+	INFORMATION_ELEMENT_DESCRIPTION_MAP_IT it;
+	it = ieDescrMap.find(ie);
+	int v = 0;
+
+	if (it == ieDescrMap.end())
+	{
+		LOG4CXX_ERROR(logger, "Information element " << ie
+				<< " could not be found in informationElementDescriptionMap");
+		return 0;
+	}
+	if ((*it).second.ieValueDistDef.distribution == GAUSSIAN)
+	{
+		boost::normal_distribution<> gaussian_dist ((*it).second.ieValueDistDef.gaussianMu, (*it).second.ieValueDistDef.gaussianSigma);
+		boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (gen, gaussian_dist);
+		v = (int)gaussian();
+	}
+	else
+	{
+		LOG4CXX_ERROR(logger, "Distribution " << (*it).second.ieValueDistDef.distribution
+				<< " has not been implemented for IE " << ie);
+		return 0;
+	}
+
+	return v;
+}
+bool ReadMsc::GetPeriodicCommunicationDescriptorFlag(USE_CASE_ID useCaseId, int step)
+{
+	USE_CASE_DESCRIPTION_MAP_IT it = useCaseDescrMap.find(useCaseId);
+	if (it == useCaseDescrMap.end())
+	{
+		LOG4CXX_ERROR(logger, "Periodic flag could not be fetched because of the unknown use-case ID " << useCaseId << "")
+		return false;
+	}
+	if ((*it).second.size() <= step)
+	{
+		LOG4CXX_ERROR(logger, "Periodic flag could not be fetched because provided step " << step
+				<< " is larger than the total number of communication descriptors stored for use-case ID " << useCaseId
+				<< ", i.e.: " << (*it).second.size());
+		return false;
+	}
+	return (*it).second.at(step).periodicFlag;
+}
 bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		NETWORK_ELEMENT src,
 		NETWORK_ELEMENT dst,
 		PROTOCOL_TYPE protType,
 		PRIMITIVE_NAME primName,
 		INFORMATION_ELEMENT_VECTOR infElements,
-		DISTRIBUTION_DEFINITION_STRUCT latencyDescription)
+		DISTRIBUTION_DEFINITION_STRUCT latencyDescription,
+		bool periodicFlag)
 {
 	USE_CASE_DESCRIPTION_MAP_IT useCaseDescrMapIt;
 	COMMUNICATION_DESCRIPTION_STRUCT commDescrStruct;
@@ -168,15 +237,18 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 	commDescrStruct.primitiveName = primName;
 	commDescrStruct.informationElements = infElements;
 	commDescrStruct.latencyDescription = latencyDescription;
+	commDescrStruct.periodicFlag = periodicFlag;
 
 	CheckNetworkElementIdentifier(src);
 	CheckNetworkElementIdentifier(dst);
 	CheckProtocolTypeIdentifier(protType);
 	CheckPrimitiveNameIdentifier(primName);
 
-	for (unsigned int i = 0; i < commDescrStruct.informationElements.size(); i++)
+	for (int i = 0; i < commDescrStruct.informationElements.size(); i++)
+	{
+		CheckInformationElementIntegrity(commDescrStruct.informationElements.at(i));
 		CheckInformationElementIdentifier(commDescrStruct.informationElements.at(i));
-
+	}
 	// New use-case
 	if (useCaseDescrMap.find(uc) == useCaseDescrMap.end())
 	{
@@ -192,9 +264,11 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		useCaseDescrMapIt = useCaseDescrMap.find(uc);
 		// Add new communication description at the end of the vector
 		(*useCaseDescrMapIt).second.insert((*useCaseDescrMapIt).second.end(),commDescrStruct);
-		LOG4CXX_DEBUG(logger, "Communication description added to existing use-case with ID " << (*useCaseDescrMapIt).first << ", step " << (*useCaseDescrMapIt).second.size());
+		LOG4CXX_DEBUG(logger, "Communication description added to existing use-case with ID " << (*useCaseDescrMapIt).first
+				<< ", step " << (*useCaseDescrMapIt).second.size());
 	}
-	LOG4CXX_TRACE(logger, "Communication description:\n\tSource:         " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).source
+	LOG4CXX_TRACE(logger, "Communication description:\n\tSource:         "
+			<< (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).source
 			<< "\n\tDestination:    " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).destination
 			<< "\n\tProtocol Type:  " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).protocolType
 			<< "\n\tPrimitive Name: " << (*useCaseDescrMapIt).second.at((*useCaseDescrMapIt).second.size() - 1).primitiveName
@@ -260,7 +334,6 @@ bool ReadMsc::ExtractDataFromLine(MSC_LINE_VECTOR line,
 		// Information elements
 		lineTmp3.clear();
 		boost::split(lineTmp3, lineTmp2.at(1), boost::is_any_of("("));
-
 		boost::split(lineTmp4, lineTmp3.at(1), boost::is_any_of(")"));
 		boost::split(lineTmp5, lineTmp4.at(0), boost::is_any_of(","));
 
@@ -365,6 +438,11 @@ const char * ReadMsc::GetLatencyValue(string line, string element)
 {
 	MSC_LINE_VECTOR lineTmp1,lineTmp2;
 	boost::algorithm::split_regex(lineTmp1, line, boost::regex (element));
+	if (lineTmp1.size() <= 1)
+	{
+		LOG4CXX_ERROR(logger, "String '" << element << "' could not be found in " << line);
+		return "";
+	}
 	boost::split(lineTmp2, lineTmp1.at(1), boost::is_any_of("{"));
 	lineTmp1.clear();
 	boost::split(lineTmp1, lineTmp2.at(1), boost::is_any_of("}"));
@@ -505,6 +583,15 @@ void ReadMsc::CheckProtocolTypeIdentifier(PROTOCOL_TYPE protocolType)
 		//TODO add MySQL entry
 	}
 }
+bool ReadMsc::CheckInformationElementIntegrity(INFORMATION_ELEMENT ie)
+{
+	if (ie != "UE_ID" && ie != "BS_ID" && ieDescrMap.find(ie) == ieDescrMap.end())
+	{
+		LOG4CXX_ERROR(logger, "Information element " << ie << " obtained from openmsc.msc has not been specified in openmsc.cfg");
+		return false;
+	}
+	return true;
+}
 void ReadMsc::CheckInformationElementIdentifier(INFORMATION_ELEMENT informationElement)
 {
 	if (informationElementsMap.find(informationElement) == informationElementsMap.end())
@@ -516,7 +603,6 @@ void ReadMsc::CheckInformationElementIdentifier(INFORMATION_ELEMENT informationE
 		//TODO add MySQL entry
 	}
 }
-
 IDENTIFIER ReadMsc::GetProtocolTypeIdentifier(PROTOCOL_TYPE protocolType)
 {
 	PROTOCOL_TYPES_MAP_IT it;
@@ -530,7 +616,6 @@ IDENTIFIER ReadMsc::GetProtocolTypeIdentifier(PROTOCOL_TYPE protocolType)
 
 	return 0;
 }
-
 COMMUNICATION_DESCRIPTION_STRUCT ReadMsc::GetParticularCommunicationDescription (USE_CASE_ID useCaseId,
 		int step)
 {
@@ -590,7 +675,6 @@ IDENTIFIER ReadMsc::TranslateInformationElement2ID(INFORMATION_ELEMENT ie)
 
 	return (*it).second;
 }
-
 void ReadMsc::EstablishDictConnection(Dictionary *dict_)
 {
 	dictionary_ = dict_;
@@ -599,4 +683,17 @@ void ReadMsc::AddConfig(int *uesPerBs_, int *bss_)
 {
 	numOfUesPerBs_ = uesPerBs_;
 	numOfBss_ = bss_;
+}
+void ReadMsc::AddInformationElementDescription(INFORMATION_ELEMENT_DESCRIPTION_PAIR ieDescrPair)
+{
+	INFORMATION_ELEMENT_DESCRIPTION_MAP_IT it;
+	it = ieDescrMap.find(ieDescrPair.first);
+
+	if (it == ieDescrMap.end())
+	{
+		ieDescrMap.insert(ieDescrPair);
+		LOG4CXX_DEBUG (logger, "IE description for " << ieDescrPair.first << " has been added");
+	}
+	else
+		LOG4CXX_ERROR (logger, "ieDescrMap key " << ieDescrPair.first << " has been already stored to the map");
 }

@@ -210,10 +210,10 @@ typedef struct communicationDescription {
 					destination;					/** Unique name of the destination network element */
 	PROTOCOL_TYPE protocolType;						/** Type of network protocol used */
 	PRIMITIVE_NAME primitiveName;					/** Message type of the communication */
-	INFORMATION_ELEMENT_VECTOR informationElements;	/** Vector of information elements */
+	INFORMATION_ELEMENT_VECTOR informationElements;	/** Vector of information elements - obsolete */
 	DISTRIBUTION_DEFINITION_STRUCT latencyDescription;	/** Struct holding information about the communication latency between source and destination */
+	bool periodicFlag;								/** Flag indicating if this communication is a periodic one*/
 } COMMUNICATION_DESCRIPTION_STRUCT;
-
 /**
  * \typedef NOISE_DESCRIPTION_STRUCT
  * \brief struct to hold noise definition from openmsc.cfg 'noise = {uncorrelated()}'
@@ -224,11 +224,18 @@ typedef struct noiseDescription {
 	DISTRIBUTION_DEFINITION_STRUCT distribution;
 } NOISE_DESCRIPTION_STRUCT;
 /**
+ * \typedef INFORMATION_ELEMENT_DESCRIPTION_STRUCT
+ * \brief struct to hold occurrence and value information about information elements defined in openmsc.cfg
+ */
+typedef struct informationElementDescription {
+	DISTRIBUTION_DEFINITION_STRUCT	occurenceDistDef;	/** struct to hold distribution information regarding an IEs occurrence */
+	DISTRIBUTION_DEFINITION_STRUCT	ieValueDistDef;		/** struct to hold distribution-based information about the value of the IE*/
+} INFORMATION_ELEMENT_DESCRIPTION_STRUCT;
+/**
  * \typedef MSC_LINE_VECTOR
  * \brief string vector for a line from the MSC file
  */
 typedef vector <string> MSC_LINE_VECTOR;
-
 /**
  * \typedef COMMUNICATION_DESCRIPTION_VECTOR
  * \brief vector of COMMUNICATION_DESCRIPTION_STRUCTs
@@ -240,19 +247,31 @@ typedef vector <COMMUNICATION_DESCRIPTION_STRUCT> COMMUNICATION_DESCRIPTION_VECT
  * \brief std::pair with the numeric representations of the base-station identifier and the user equipment identifier
  */
 typedef pair <BS_ID,UE_ID> BS_UE_PAIR;
-
 /**
  * \typedef TIME_EVENT_ID_PAIR
  * \brief TIME <> EVENT_ID pair
  */
 typedef pair <TIME,EVENT_ID> TIME_EVENT_ID_PAIR;
-
+/**
+ * \typedef INFORMATION_ELEMENTS_PAIR
+ * \brief pair to hold a single IE information specified in openmsc.cfg
+ */
+typedef pair <INFORMATION_ELEMENT, INFORMATION_ELEMENT_DESCRIPTION_STRUCT> INFORMATION_ELEMENT_DESCRIPTION_PAIR;
+/**
+ * \typedef INFORMATION_ELEMENTS_MAP
+ * \brief map to hold IE information specified in openmsc.cfg
+ */
+typedef map <INFORMATION_ELEMENT, INFORMATION_ELEMENT_DESCRIPTION_STRUCT> INFORMATION_ELEMENT_DESCRIPTION_MAP;
+/**
+ * \typedef INFORMATION_ELEMENTS_MAP_IT
+ * \brief Iterator for INFORMATION_ELEMENT_DESCRIPTION_MAP
+ */
+typedef map <INFORMATION_ELEMENT, INFORMATION_ELEMENT_DESCRIPTION_STRUCT>::iterator INFORMATION_ELEMENT_DESCRIPTION_MAP_IT;
 /**
  * \typedef EVENT_MAP
  * \brief TIME <> EVENT_ID map
  */
 typedef map <TIME,EVENT_ID> EVENT_MAP;
-
 /**
  * \typedef EVENT_TIMER_MAP
  * \brief TIME <> BS_UE_PAIR map
@@ -273,43 +292,36 @@ typedef map <int, EVENT_ID>::iterator HASHED_NOISE_EVENT_ID_MAP_IT;
  * \brief Iterator for TIME <> EVENT_ID map
  */
 typedef map <TIME,EVENT_ID>::iterator EVENT_MAP_IT;
-
 /**
  * \typedef EVENT_TIMER_MAP_IT
  * \brief iterator for TIME <> BS_UE_PAIR map
  */
 typedef map <TIME,BS_UE_PAIR>::iterator EVENT_TIMER_MAP_IT;
-
 /**
  * \typedef NETWORK_ELEMENTS_MAP
  * std::map of network elements as keys and their corresponding unique identifiers
  */
 typedef map <NETWORK_ELEMENT, IDENTIFIER> NETWORK_ELEMENTS_MAP;
-
 /**
  * \typedef NETWORK_ELEMENTS_MAP_IT
  * \brief std::map iterator for NETWORK_ELEMENTS_MAP
  */
 typedef map <NETWORK_ELEMENT, IDENTIFIER>::iterator NETWORK_ELEMENTS_MAP_IT;
-
 /**
  * \typedef PRIMITIVE_NAMES_MAP
  * std::map of primitive names as keys and their corresponding unique identifiers
  */
 typedef map <PRIMITIVE_NAME, IDENTIFIER> PRIMITIVE_NAMES_MAP;
-
 /**
  * \typedef PRIMITIVE_NAMES_MAP_IT
  * \brief std::map iterator for PRIMITIVE_NAMES_MAP
  */
 typedef map <PRIMITIVE_NAME, IDENTIFIER>::iterator PRIMITIVE_NAMES_MAP_IT;
-
 /**
  * \typedef PROTOCOL_TYPES_MAP
  * std::map of protocol types as keys and their corresponding unique identifiers
  */
 typedef map <PROTOCOL_TYPE, IDENTIFIER> PROTOCOL_TYPES_MAP;
-
 /**
  * \typedef PROTOCOL_TYPES_MAP_IT
  * \brief std::map iterator for PROTOCOL_TYPES_MAP
@@ -320,25 +332,21 @@ typedef map <PROTOCOL_TYPE, IDENTIFIER>::iterator PROTOCOL_TYPES_MAP_IT;
  * std::map of information elements as keys and their corresponding unique identifiers
  */
 typedef map <INFORMATION_ELEMENT, IDENTIFIER> INFORMATION_ELEMENTS_MAP;
-
 /**
  * \typedef INFORMATION_ELEMENT_MAP_IT
  * \brief std::map iterator for INFORMATION_ELEMENTS_MAP
  */
 typedef map <INFORMATION_ELEMENT, IDENTIFIER>::iterator INFORMATION_ELEMENTS_MAP_IT;
-
 /**
  * \typedef USE_CASE_DESCRIPTION_MAP
  * \brief std::map to hold vector of communications between NEs for a particular use-case
  */
 typedef map <USE_CASE_ID, COMMUNICATION_DESCRIPTION_VECTOR> USE_CASE_DESCRIPTION_MAP;
-
 /**
  * \typedef USE_CASE_DESCRIPTION_MAP_IT
  * \brief std::map iterator for USE_CASE_DESCRIPTION_MAP
  */
 typedef map <USE_CASE_ID, COMMUNICATION_DESCRIPTION_VECTOR>::iterator USE_CASE_DESCRIPTION_MAP_IT;
-
 /**
  * \typedef USE_CASE_PROBABILITY_MAP
  * \brief std::map to hold occurrence probability for each use-case
@@ -358,13 +366,11 @@ typedef map <USE_CASE_ID, PROBABILITY>::iterator USE_CASE_PROBABILITY_MAP_IT;
  * \brief boost::posix_time definition
  */
 typedef boost::posix_time::ptime Time;
-
 /**
  * \typedef base_generator_type
  * \brief Required for seed calculation
  */
 typedef boost::minstd_rand base_generator_type;
-
 /**
  * \struct time_t_traits
  * \brief Helper struct for boost::time
