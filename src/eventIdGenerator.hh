@@ -62,6 +62,10 @@ public:
 	 */
 	TIME CalculateLatency(USE_CASE_ID ucId, int step, base_generator_type *gen);
 	/**
+	 * Writing all patterns (excluding periodical generated numbers) to a file.
+	 */
+	void WritePatterns2File();
+	/**
 	 * Initialising logging in ReadMsc class
 	 * @param l Pointer to LoggerPtr class
 	 */

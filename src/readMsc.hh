@@ -47,6 +47,16 @@ public:
 	 */
 	int GetNumOfUseCases();
 	/**
+	 * Return the number of UEs set up in openmsc.cfg
+	 * @return Integer number stored in numOfUesPerBs_
+	 */
+	int GetNumOfUes();
+	/**
+	 * Return the number of BSs set up in openmsc.cfg
+	 * @return Integer number stored in numOfBss_
+	 */
+	int GetNumOfBss();
+	/**
 	 * Obtain the probability for a given use-case ID
 	 * @param useCaseId The integer number for the use-case ID
 	 * @return The probability for the given use-case ID

@@ -697,3 +697,11 @@ void ReadMsc::AddInformationElementDescription(INFORMATION_ELEMENT_DESCRIPTION_P
 	else
 		LOG4CXX_ERROR (logger, "ieDescrMap key " << ieDescrPair.first << " has been already stored to the map");
 }
+int ReadMsc::GetNumOfUes()
+{
+	return *numOfUesPerBs_;
+}
+int ReadMsc::GetNumOfBss()
+{
+	return *numOfBss_;
+}

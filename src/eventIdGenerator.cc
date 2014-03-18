@@ -28,6 +28,7 @@
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/gamma_distribution.hpp>
 #include "eventIdGenerator.hh"
+#include <fstream>
 
 void EventIdGenerator::Init(ReadMsc *rMsc_)
 {
@@ -132,8 +133,42 @@ TIME EventIdGenerator::CalculateLatency(USE_CASE_ID ucId, int step, base_generat
 			"ms\t(Distribution = " << comDescrStruct.latencyDescription.distribution << ")");
 	return TIME(latency.millisec(), "millisec");
 }
+void EventIdGenerator::WritePatterns2File()
+{
+	EVENT_ID_VECTOR eventIdV, eIdTmp;
+	ofstream dict;
 
+	dict.open("patterns.csv", ios::trunc);
+	dict << "# Automatically generated file by OpenMSC" << endl;
 
-
-
-
+	for (int bs = 1; bs <= (*readMsc_).GetNumOfBss(); bs++)
+	{
+		for (int ue = 1; ue <= (*readMsc_).GetNumOfUes(); ue++)
+		{
+			for (int ucId = 1; ucId <= (*readMsc_).GetNumOfUseCases(); ucId++)
+			{
+				for (int mscStep = 0; mscStep < (*readMsc_).GetMscLength(ucId); mscStep++)
+				{
+					if (!(*readMsc_).GetPeriodicCommunicationDescriptorFlag(ucId,mscStep))
+					{
+						eIdTmp = GetEventIdForComDescr(ucId,mscStep,bs,ue);
+						for(int i = 0; i < eIdTmp.size(); i++)
+							eventIdV.push_back(eIdTmp.at(i));
+						eIdTmp.clear();
+					}
+				}
+				// Writing this pattern vector to dict
+				dict << eventIdV.size() << "\t" << eventIdV.at(0);
+				for (int i = 1; i < eventIdV.size(); i++)
+					dict << "," << eventIdV.at(i);
+				dict << endl;
+				LOG4CXX_DEBUG(logger, "Pattern for BS " << bs
+						<< " / UE " << ue
+						<< " / UC ID " << ucId
+						<< " written to patterns.csv");
+				eventIdV.clear();
+			}
+		}
+	}
+	dict.close();
+}

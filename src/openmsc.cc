@@ -187,6 +187,8 @@ void *generateEventIds(void *t)
 	EVENT_TIMER_MAP_IT eMapIt;
 	timespec ts;
 
+	eventIdGenerator.WritePatterns2File();
+
 	for (;;)
 	{
 		// Generate inital starting time for each UE using the distribution specified in the openmsc.cfg file
