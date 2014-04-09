@@ -681,7 +681,10 @@ bool readConfiguration(char *configFileName_,
 
 		if (strcmp(dist,"constant") == 0)
 		{
+			float t;
 			ueDistDef.distribution = CONSTANT;
+			openmscConfig.lookupValue("ueActivity-Dist-Value", t);
+			ueDistDef.constantLatency = TIME(t, "ms");
 		}
 		else if (strcmp(dist,"exponential") == 0)
 		{
@@ -764,6 +767,17 @@ bool readConfiguration(char *configFileName_,
 					}
 					ieDescrStruct.ieValueDistDef.gaussianMu = atof(ieDistMu.c_str());
 					ieDescrStruct.ieValueDistDef.gaussianSigma = atof(ieDistSigma.c_str());
+				}
+				else if (ieDist.find("constant") != string::npos)
+				{
+					string ieDistValue;
+					ieDescrStruct.ieValueDistDef.distribution = CONSTANT;
+					if (!(ie.lookupValue("ieDistValue", ieDistValue)))
+					{
+						LOG4CXX_ERROR(logger, "ieDistValue could not be read from openmsc.cfg");
+						return false;
+					}
+					ieDescrStruct.ieValueDistDef.constantLatency = TIME(atof(ieDistValue.c_str()), "millisec");
 				}
 				else
 				{

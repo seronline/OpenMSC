@@ -186,7 +186,7 @@ int ReadMsc::GetIeValue(INFORMATION_ELEMENT ie)
 	{
 		LOG4CXX_ERROR(logger, "Information element " << ie
 				<< " could not be found in informationElementDescriptionMap");
-		return 0;
+		return 1;
 	}
 	if ((*it).second.ieValueDistDef.distribution == GAUSSIAN)
 	{
@@ -194,11 +194,15 @@ int ReadMsc::GetIeValue(INFORMATION_ELEMENT ie)
 		boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (gen, gaussian_dist);
 		v = (int)gaussian();
 	}
+	else if ((*it).second.ieValueDistDef.distribution == CONSTANT)
+	{
+		v = (*it).second.ieValueDistDef.constantLatency.millisec();
+	}
 	else
 	{
 		LOG4CXX_ERROR(logger, "Distribution " << (*it).second.ieValueDistDef.distribution
 				<< " has not been implemented for IE " << ie);
-		return 0;
+		return 1;
 	}
 
 	return v;

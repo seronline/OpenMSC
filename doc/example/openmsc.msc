@@ -20,12 +20,12 @@ msc {
 	BS => UE [ label = "RRC-RADIO_BEARER_SETUP(UE_ID)" ]; # latencyDist = {constant} latencyValue = {300.0}
 	UE => BS [ label = "RRC-RADIO_BEARER_SETUP_COMPLETE(UE_ID)" ]; # latencyDist = {constant} latencyValue = {400.0}
 
-	UE -> BS [ label = "NBAP-DEDICATED_MEASUREMENT_REPORT(SIRErrorValue)" ]; # latencyDist = {gaussian} latencyMu = {100.0} latencySigma = {1.0}
+	UE -> BS [ label = "NBAP-DEDICATED_MEASUREMENT_REPORT(UE_ID,SIRErrorValue)" ]; # latencyDist = {gaussian} latencyMu = {100.0} latencySigma = {1.0}
 
-	BS => UE [ label = "RRC-CONNECTION_RELEASE(UE_ID)" ]; # latencyDist = {constant} latencyValue = {500.0}
+	BS => UE [ label = "RRC-CONNECTION_RELEASE(UE_ID)" ]; # latencyDist = {constant} latencyValue = {5000.0}
 	UE => BS [ label = "RRC-CONNECTION_RELEASE_COMPLETE(UE_ID)" ]; # latencyDist = {constant} latencyValue = {600.0}
 
 	--- [ label = "Failure", textcolor="#c74f10", linecolour="#c74f10" ]; # Probability = {0.2}
-	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)" ]; # latencyDist = {exponential} latencyLambda = {4.0}
-	BS => UE [ label = "RRC-CONNECTION_FAILURE(UE_ID)" ]; # latencyDist = {constant} latencyValue = {1.0}
+	UE => BS [ label = "RRC-CONNECTION_REQUEST(UE_ID)" ]; # latencyDist = {gaussian} latencyMu = {100.0} latencySigma = {1.0}
+	BS => UE [ label = "RRC-CONNECTION_FAILURE(UE_ID,ErrorCode)" ]; # latencyDist = {constant} latencyValue = {1.0}
 }
