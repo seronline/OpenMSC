@@ -79,16 +79,16 @@ int ReadMsc::ReadMscConfigFile ()
 			{
 				if (caseConfig.at(i) == "Success")
 				{
-					LOG4CXX_DEBUG(logger, "Success use-case found");
 					useCaseId++;
+					LOG4CXX_DEBUG(logger, "Success use-case found with probability = " << GetLatencyValue(line, "Probability"));
 				}
 				else if (caseConfig.at(i) == "Failure")
 				{
-					LOG4CXX_DEBUG(logger, "New Failure use-case found");
 					useCaseId++;
+					LOG4CXX_DEBUG(logger, "Failure use-case found with probability = " << GetLatencyValue(line, "Probability"));
 				}
-				useCaseProbabilityMap.insert(pair<USE_CASE_ID, PROBABILITY> (useCaseId,atof(GetLatencyValue(line, "Probability"))));
 			}
+			useCaseProbabilityMap.insert(pair<USE_CASE_ID, PROBABILITY> (useCaseId,atof(GetLatencyValue(line, "Probability"))));
 		}
 
 		// Get message types and latencies for communications
@@ -168,13 +168,15 @@ USE_CASE_ID ReadMsc::GetUseCaseId4Probability(PROBABILITY p)
 
 	for(it = useCaseProbabilityMap.begin(); it != useCaseProbabilityMap.end(); it++)
 	{
-		if(pTmp <= p)
-			pTmp += (*it).second;
-		else
-			break;
+		pTmp += (*it).second;
+		if (pTmp > p)
+		{
+			LOG4CXX_DEBUG(logger, "For given probability " << p << " the sum " << pTmp << " corresponds to use-case ID = " << (*it).first);
+			return (*it).first;
+		}
 	}
-	LOG4CXX_DEBUG(logger, "For given probability " << p << " use-case ID = " << (*it).first);
-	return (*it).first;
+
+	return 0;
 }
 int ReadMsc::GetIeValue(INFORMATION_ELEMENT ie)
 {
@@ -260,7 +262,7 @@ bool ReadMsc::AddCommunicationDescription (USE_CASE_ID uc,
 		comDescrV.insert(comDescrV.begin(),commDescrStruct);
 		useCaseDescrMap.insert(pair <USE_CASE_ID, COMMUNICATION_DESCRIPTION_VECTOR> (uc, comDescrV));
 		useCaseDescrMapIt = useCaseDescrMap.find(uc);
-		LOG4CXX_DEBUG(logger, "New use-case map key " << uc << " created");
+		LOG4CXX_DEBUG(logger, "New use-case map key " << uc << " created - " << useCaseDescrMap.size() << " use-cases stored now in total");
 	}
 	// Add to existing use-case
 	else

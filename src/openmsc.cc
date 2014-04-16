@@ -310,7 +310,7 @@ void *generateEventIds(void *t)
 			TIME startingTimeForThisComDescr = TIME(tvSec.sec() + tvNsec.sec(), "sec");
 			EVENT_ID_VECTOR eventIdVectorPeriodic;
 			useCaseId = eventIdGenerator.DetermineUseCaseId(&generatorUseCase);
-			bool PERIODIC_FLAG = false;
+			LOG4CXX_DEBUG(logger, "Use-Case ID for UE " << (*eMapIt).second.first << " - BS " << (*eMapIt).second.second << " = " << useCaseId);
 			for (int readMscIt = 0; readMscIt < readMsc.GetMscLength(useCaseId); readMscIt++)
 			{
 				EVENT_ID_VECTOR eventIdVector;
@@ -363,7 +363,7 @@ void *generateEventIds(void *t)
 										LOG4CXX_TRACE (logger, "Adding periodic EventID "
 												<< eventIdVectorPeriodic.at(eventIdVectorPeriodicIt)
 												<< " at relative time " << setprecision(20) << periodicStartTime.sec() + offset.sec()
-												<< " to eventMap for communication descriptor " << readMscIt);
+												<< " to eventMap for use-case " << useCaseId << " and communication descriptor " << readMscIt-1);
 									}
 									mut.unlock();
 								}
@@ -387,7 +387,7 @@ void *generateEventIds(void *t)
 						mut.unlock();
 						LOG4CXX_TRACE (logger, "Adding EventID " << eventId
 								<< " at relative time " << setprecision(20) << startingTimeForThisComDescr.sec()
-								<< " to eventMap for communication descriptor " << readMscIt);
+								<< " to eventMap for use-case " << useCaseId << " and communication descriptor " << readMscIt);
 					}
 				}
 			}
@@ -547,7 +547,7 @@ void *sendStream(void *t)
 	tcp::resolver::iterator iteratorTcp = resolverTcp.resolve(queryTcp);
 	tcp::socket tcpSocket(io_serviceTcp);
 	TIME printingRateTime;
-	unsigned int countEventIds = 0;
+	unsigned int countEventIds = 0, countEventIdsTotal = 0;
 	// Opening stream file if option was selected
 	if (streamToFileFlag)
 	{
@@ -612,7 +612,8 @@ void *sendStream(void *t)
 			if (PRINT_EVENT_ID_RATE && (printingRateTime.sec() < currentTime.sec()))
 			{
 				printingRateTime = TIME(currentTime.sec() + 1.0, "sec");
-				LOG4CXX_INFO(logger, "EventID Rate: " << countEventIds << "/s");
+				countEventIdsTotal += countEventIds;
+				LOG4CXX_INFO(logger, "EventID Rate: " << countEventIds << "/s\tTotal = " << countEventIdsTotal);
 				countEventIds = 0;
 			}
 			else
@@ -912,7 +913,7 @@ int main (int argc, char** argv)
 
 	struct argp_option options[] =
 	{
-		{ 0, 'r', 0, 0, "Print 'EventIDs per second' rate to stdout using INFO logging level"},
+		{ 0, 'r', 0, 0, "Print 'EventIDs per second' rate and total # of EventIDs to stdout using INFO logging level"},
 		{ "TCP", 't', 0, 0, "Using IPv4 over TCP to communicate with destination module"},
 		{ "UDP", 'u', 0, 0, "Using IPv4 over UDP to communicate with destination module"},
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},

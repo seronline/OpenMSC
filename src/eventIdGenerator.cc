@@ -42,9 +42,7 @@ void EventIdGenerator::InitLog(log4cxx::LoggerPtr l)
 
 USE_CASE_ID EventIdGenerator::DetermineUseCaseId(base_generator_type *gen)
 {
-	USE_CASE_ID useCaseId;
 	int numOfUseCases;
-	timespec seed;
 	numOfUseCases = (*readMsc_).GetNumOfUseCases();
 	boost::uniform_real<> uni_dist_real (0, 1);
 	boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (*gen, uni_dist_real);

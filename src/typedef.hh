@@ -377,4 +377,4 @@ typedef boost::minstd_rand base_generator_type;
  */
 typedef boost::asio::time_traits<boost::posix_time::ptime> time_traits_t;
 
-#define PRECISION 6
+#define PRECISION 10
