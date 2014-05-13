@@ -53,7 +53,7 @@ class session
 				  informationElementValue = 3,
 				  start,
 				  end;
-				cout << "#######################\nReceived msg from " << sender_endpoint.address() << ":\n";
+				cout << "#######################" << endl;
 				start = 0;
 				end = sizeSource;
 				cout << "Source (" << end - start << "):\t\t";
