@@ -10,11 +10,16 @@ openmsc: openmsc.o
 	g++ $(LDFLAGS) -o openmsc openmsc.o readMsc.o eventIdGenerator.o dictionary.o time.o $(LDLIBS)
 	mv openmsc ../bin
 	 
-receiverDummy: receiverDummy.o
-	g++ $(LDFLAGS) -o receiverDummy receiverDummy.o $(LDLIBS)
-	$(RM) receiverDummy.o
-	mv receiverDummy ../bin
+receiverDummyUdp: receiverDummyUdp.o
+	g++ $(LDFLAGS) -o receiverDummyUdp receiverDummyUdp.o $(LDLIBS)
+	$(RM) receiverDummyUdp.o
+	mv receiverDummyUdp ../bin
 	
+receiverDummyTcp: receiverDummyTcp.o
+	g++ $(LDFLAGS) -o receiverDummyTcp receiverDummyTcp.o $(LDLIBS)
+	$(RM) receiverDummyTcp.o
+	mv receiverDummyTcp ../bin
+		
 openmsc.o: openmsc.cc
 	g++ $(CPPFLAGS) -c time.cc 
 	g++ $(CPPFLAGS) -c readMsc.cc 
@@ -22,8 +27,11 @@ openmsc.o: openmsc.cc
 	g++ $(CPPFLAGS) -c dictionary.cc
 	g++ $(CPPFLAGS) -c openmsc.cc 
 
-receiverDummy.o: receiverDummy.cc
-	g++ $(CPPFLAGS) -c receiverDummy.cc 
+receiverDummyUdp.o: receiverDummyUdp.cc
+	g++ $(CPPFLAGS) -c receiverDummyUdp.cc 
+	
+receiverDummyTcp.o: receiverDummyTcp.cc
+	g++ $(CPPFLAGS) -c receiverDummyTcp.cc 
 	
 clean:
 	$(RM) $(OBJS) ../bin/openmsc ../bin/receiverDummy
@@ -37,4 +45,5 @@ uninstall:
 all:
 	make clean
 	make openmsc
-	make receiverDummy
+	make receiverDummyUdp
+	make receiverDummyTcp
