@@ -70,8 +70,8 @@ using boost::asio::ip::udp;
 using boost::asio::ip::tcp;
 int seed = 1,
 		numOfUesPerBs,
-		numOfBss,
-		stopRate;	/** Number indicating after how many EvenIDs OpenMSC should stop sending and automatically ends*/
+		numOfBss;
+unsigned int stopRate;	/** Number indicating after how many EvenIDs OpenMSC should stop sending and automatically ends*/
 DISTRIBUTION_DEFINITION_STRUCT ueDistDef;
 NOISE_DESCRIPTION_STRUCT noiseDescrStruct;
 EVENT_MAP eventMap;
@@ -626,7 +626,7 @@ void *sendStream(void *t)
 			else
 				countEventIds++;
 
-			if (AUTOMATICALLY_STOP_SENDING && stopRate < countEventIds)
+			if (AUTOMATICALLY_STOP_SENDING && stopRate < countEventIdsTotal)
 			{
 				if (streamToFileFlag)
 					file.close();
