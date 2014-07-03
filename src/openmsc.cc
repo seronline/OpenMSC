@@ -70,7 +70,8 @@ using boost::asio::ip::udp;
 using boost::asio::ip::tcp;
 int seed = 1,
 		numOfUesPerBs,
-		numOfBss;
+		numOfBss,
+		stopRate;	/** Number indicating after how many EvenIDs OpenMSC should stop sending and automatically ends*/
 DISTRIBUTION_DEFINITION_STRUCT ueDistDef;
 NOISE_DESCRIPTION_STRUCT noiseDescrStruct;
 EVENT_MAP eventMap;
@@ -84,7 +85,8 @@ PORT port;
 bool TCP = false,
 UDP = true,
 streamToFileFlag = false,
-PRINT_EVENT_ID_RATE = false;
+PRINT_EVENT_ID_RATE = false,
+AUTOMATICALLY_STOP_SENDING = false;
 const int MAX_INT = std::numeric_limits<int>::max();
 // log4cxx
 log4cxx::FileAppender * fileAppender = new log4cxx::FileAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()), "openmsc.log", false);
@@ -155,6 +157,11 @@ static int parse_opt (
 		break;
 	case 'r':
 		PRINT_EVENT_ID_RATE=true;
+		break;
+	case 's':
+		AUTOMATICALLY_STOP_SENDING = true;
+		stopRate = atoi(arg);
+		LOG4CXX_INFO(logger,"Stopping OpenMSC when " << stopRate << " were sent");
 		break;
 	}
 
@@ -618,10 +625,19 @@ void *sendStream(void *t)
 			}
 			else
 				countEventIds++;
+
+			if (AUTOMATICALLY_STOP_SENDING && stopRate < countEventIds)
+			{
+				if (streamToFileFlag)
+					file.close();
+
+				LOG4CXX_INFO (logger, stopRate << " EventIDs have been sent. OpenMSC will be terminated");
+				exit(0);
+			}
 		}
 	}
-
-	file.close();
+	if (streamToFileFlag)
+		file.close();
 
 	LOG4CXX_ERROR (logger, "sendEventIds() thread ended");
 	pthread_exit(NULL);
@@ -920,6 +936,7 @@ int main (int argc, char** argv)
 		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
 		{ 0, 'f', 0, 0, "Write EventIDs to file 'eventStream.tsv'"},
 		{ "debug", 'd', "<LEVEL>", 0, "Debug level (ERROR|INFO|DEBUG|TRACE)" },
+		{ 0, 's', "<NUMBER>", 0, "Stop OpenMSC after it sent <NUMBER> EventIDs"},
 		{ 0 }
 	};
 	struct argp argp = { options, parse_opt, args_doc, doc };
