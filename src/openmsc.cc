@@ -70,7 +70,8 @@ using boost::asio::ip::udp;
 using boost::asio::ip::tcp;
 int seed = 1,
 		numOfUesPerBs,
-		numOfBss;
+		numOfBss,
+		visualiserWindowSize;
 unsigned int stopRate;	/** Number indicating after how many EvenIDs OpenMSC should stop sending and automatically ends*/
 DISTRIBUTION_DEFINITION_STRUCT ueDistDef;
 NOISE_DESCRIPTION_STRUCT noiseDescrStruct;
@@ -166,7 +167,8 @@ static int parse_opt (
 		break;
 	case 'v':
 		VISUALISER=true;
-		LOG4CXX_INFO(logger,"Enable visualiser");
+		visualiserWindowSize = atoi(arg);
+		LOG4CXX_INFO(logger,"Enable visualiser with window size = " << visualiserWindowSize);
 		break;
 	}
 
@@ -667,7 +669,7 @@ void *visualiser(void *t)
 	boost::asio::io_service io_service;
 	boost::asio::deadline_timer timer(io_service);
 	Visualiser visualiser;
-	visualiser.Initialise(logger);
+	visualiser.Initialise(logger, visualiserWindowSize);
 	timespec ts;
 	EVENT_MAP eventIdTmpMap;
 	for (;;)
@@ -980,7 +982,7 @@ int main (int argc, char** argv)
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},
 		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
 		{ 0, 'f', 0, 0, "Write EventIDs to file 'eventStream.tsv'"},
-		{ "visualiser", 'v', 0, 0, "Enable real-time visualiser"},
+		{ "visualiser", 'v', "<NUMBER>", 0, "Enable real-time visualiser with a window size in seconds"},
 		{ "debug", 'd', "<LEVEL>", 0, "Debug level (ERROR|INFO|DEBUG|TRACE)" },
 		{ 0, 's', "<NUMBER>", 0, "Stop OpenMSC after it sent <NUMBER> EventIDs. NOTE, option '-r' must be enabled too!"},
 		{ 0 }

@@ -35,7 +35,7 @@ public:
 	 * @param l	copy constructor for logging functionality
 	 * @return void
 	 */
-	void Initialise(log4cxx::LoggerPtr l);
+	void Initialise(log4cxx::LoggerPtr l, int x);
 	/**
 	 * Add the current map of EventIDs and their future starting times to the Gnuplot map
 	 *
@@ -55,5 +55,6 @@ private:
 	EVENT_MAP eventIds;
 	log4cxx::LoggerPtr logger;	/** Pointer to LoggerPtr class */
 	int yrangeMax;				/** Storing the maximal number of IDs getting displayed - used for 'set yrange[0:yrangeMax]' */
+	int xrangeMin;				/** The window size for xrange settings in Gnuplot */
 	map<EVENT_ID, int> hashMap; /** integer mapping of long long EventIDs*/
 };
