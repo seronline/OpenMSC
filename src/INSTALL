@@ -1,13 +1,15 @@
 ####################################################
 1) Required Libraries
 
-$ apt-get install libboost-math-dev libboost-thread-dev libboost-system-dev libboost-regex-dev liblog4cxx10-dev libconfig++8-dev build-essential
+$ apt-get install libboost-math-dev libboost-thread-dev libboost-system-dev libboost-regex-dev libboost-iostreams-dev liblog4cxx10-dev libconfig++8-dev build-essential gnuplot-x11
 
 Note, OpenMSC is only compilable if you stick to the following library requirements:
-libboost => 1.48
+libboost => 1.48 (test up to 1.54)vim 
 libconfig => 8
 
 Also pay attention to install libconfig++ and not libconfig.
+
+In order to make the visualiser work, gnuplot-x11 (not gnuplot-nox!) MUST be installed. Even if the compilation of OpenMSC does not return an error, OpenMSC would crash if Gnuplot has not been installed manually.
 
 ####################################################
 2) Compiling Binaries

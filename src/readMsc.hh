@@ -23,7 +23,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dictionary.hh"
+#include "visualiser.hh"
 /**
  * Class for parsing MSCgen configuration file
  */

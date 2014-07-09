@@ -1,13 +1,13 @@
 RM=rm -f
 CPPFLAGS=-g
 LDFLAGS=-g
-LDLIBS=-lpthread -lboost_thread -lboost_system -L /lib64 -l pthread -lm -lrt -lconfig++ -lboost_regex -llog4cxx -lapr-1 -laprutil-1
+LDLIBS=-lpthread -lboost_thread -lboost_system -lboost_iostreams -L /lib64 -l pthread -lm -lrt -lconfig++ -lboost_regex -llog4cxx -lapr-1 -laprutil-1
 
 SRCS=openmsc.cc receiverDummy.cc readMsc.cc time.cc
 OBJS=$(subst .cc,.o,$(SRCS))
 
 openmsc: openmsc.o
-	g++ $(LDFLAGS) -o openmsc openmsc.o readMsc.o eventIdGenerator.o dictionary.o time.o $(LDLIBS)
+	g++ $(LDFLAGS) -o openmsc openmsc.o readMsc.o eventIdGenerator.o dictionary.o time.o visualiser.o $(LDLIBS)
 	mv openmsc ../bin
 	 
 receiverDummyUdp: receiverDummyUdp.o
@@ -19,12 +19,13 @@ receiverDummyTcp: receiverDummyTcp.o
 	g++ $(LDFLAGS) -o receiverDummyTcp receiverDummyTcp.o $(LDLIBS)
 	$(RM) receiverDummyTcp.o
 	mv receiverDummyTcp ../bin
-		
+	
 openmsc.o: openmsc.cc
 	g++ $(CPPFLAGS) -c time.cc 
 	g++ $(CPPFLAGS) -c readMsc.cc 
 	g++ $(CPPFLAGS) -c eventIdGenerator.cc
 	g++ $(CPPFLAGS) -c dictionary.cc
+	g++ $(CPPFLAGS) -c visualiser.cc
 	g++ $(CPPFLAGS) -c openmsc.cc 
 
 receiverDummyUdp.o: receiverDummyUdp.cc

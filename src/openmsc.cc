@@ -86,7 +86,8 @@ bool TCP = false,
 UDP = true,
 streamToFileFlag = false,
 PRINT_EVENT_ID_RATE = false,
-AUTOMATICALLY_STOP_SENDING = false;
+AUTOMATICALLY_STOP_SENDING = false,
+VISUALISER=false;
 const int MAX_INT = std::numeric_limits<int>::max();
 // log4cxx
 log4cxx::FileAppender * fileAppender = new log4cxx::FileAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()), "openmsc.log", false);
@@ -162,6 +163,10 @@ static int parse_opt (
 		AUTOMATICALLY_STOP_SENDING = true;
 		stopRate = atoi(arg);
 		LOG4CXX_INFO(logger,"Stopping OpenMSC when " << stopRate << " were sent");
+		break;
+	case 'v':
+		VISUALISER=true;
+		LOG4CXX_INFO(logger,"Enable visualiser");
 		break;
 	}
 
@@ -594,6 +599,8 @@ void *sendStream(void *t)
 			payload = (*eventMapIt).second;
 			if (streamToFileFlag)
 				file << std::setprecision(PRECISION) << (double)(currentTime.sec() - emulationStartTime.sec()) << "\t" << payload << endl;
+			if (VISUALISER == true)
+				LOG4CXX_TRACE(logger, "Sending EventID " << payload << " to OpenMSC visualiser");
 			LOG4CXX_TRACE(logger, "Sending EventID " << payload << " / EventID(s) in map: " << eventMap.size()-1);
 			eventMap.erase(eventMapIt);
 			mut.unlock();
@@ -616,23 +623,27 @@ void *sendStream(void *t)
 
 			eventMapIt = eventMap.begin();
 
-			if (PRINT_EVENT_ID_RATE && (printingRateTime.sec() < currentTime.sec()))
+			if (PRINT_EVENT_ID_RATE)
 			{
-				printingRateTime = TIME(currentTime.sec() + 1.0, "sec");
-				countEventIdsTotal += countEventIds;
-				LOG4CXX_INFO(logger, "EventID Rate: " << countEventIds << "/s\tTotal = " << countEventIdsTotal);
-				countEventIds = 0;
-			}
-			else
-				countEventIds++;
+				if (printingRateTime.sec() < currentTime.sec())
+				{
+					printingRateTime = TIME(currentTime.sec() + 1.0, "sec");
+					countEventIdsTotal += countEventIds;
+					LOG4CXX_INFO(logger, "EventID Rate: " << countEventIds << "/s\tTotal = " << countEventIdsTotal);
+					countEventIds = 0;
+				}
+				else
+					countEventIds++;
 
-			if (AUTOMATICALLY_STOP_SENDING && stopRate < countEventIdsTotal)
-			{
-				if (streamToFileFlag)
-					file.close();
+				if (AUTOMATICALLY_STOP_SENDING && stopRate < countEventIdsTotal)
+				{
+					if (streamToFileFlag)
+						file.close();
 
-				LOG4CXX_INFO (logger, stopRate << " EventIDs have been sent. OpenMSC will be terminated");
-				exit(0);
+					LOG4CXX_INFO (logger, stopRate << " EventIDs have been sent. OpenMSC will be terminated");
+					LOG4CXX_INFO (logger, "Average EventID rate: " << countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec()) << "IDs/s");
+					exit(0);
+				}
 			}
 		}
 	}
@@ -643,6 +654,40 @@ void *sendStream(void *t)
 	pthread_exit(NULL);
 }
 
+/**
+ * Visualiser
+ *
+ * This function visualises the stream
+ *
+ * @param pointer to Thread Identifier
+ * @return void
+ */
+void *visualiser(void *t)
+{
+	boost::asio::io_service io_service;
+	boost::asio::deadline_timer timer(io_service);
+	Visualiser visualiser;
+	visualiser.Initialise(logger);
+	timespec ts;
+	EVENT_MAP eventIdTmpMap;
+	for (;;)
+	{
+		clock_gettime(CLOCK_REALTIME, &ts);
+		TIME tvNsec(ts.tv_nsec, "nanosec");
+		TIME tvSec(ts.tv_sec, "sec");
+		double s = tvSec.sec() + tvNsec.sec();
+		TIME currentTime(s, "sec");
+		mut.lock(); // lock it in case another thread is writing into the memory which is currently read
+		eventIdTmpMap = eventMap;
+		mut.unlock();
+		visualiser.UpdateEventIdMap(eventIdTmpMap);
+		visualiser.UpdatePlot(currentTime);
+		timer.expires_from_now(boost::posix_time::seconds (1));
+		timer.wait();
+	}
+
+	pthread_exit(NULL);
+}
 /**
  * Reading configuration file
  *
@@ -915,7 +960,7 @@ int main (int argc, char** argv)
 	long int rc;
 	long int i;
 	int c;
-	pthread_t threads[2];
+	pthread_t threads[4];
 	pthread_attr_t attr;
 	void *status;
 	char config_file_name[] = "openmsc.cfg";
@@ -935,8 +980,9 @@ int main (int argc, char** argv)
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},
 		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
 		{ 0, 'f', 0, 0, "Write EventIDs to file 'eventStream.tsv'"},
+		{ "visualiser", 'v', 0, 0, "Enable real-time visualiser"},
 		{ "debug", 'd', "<LEVEL>", 0, "Debug level (ERROR|INFO|DEBUG|TRACE)" },
-		{ 0, 's', "<NUMBER>", 0, "Stop OpenMSC after it sent <NUMBER> EventIDs"},
+		{ 0, 's', "<NUMBER>", 0, "Stop OpenMSC after it sent <NUMBER> EventIDs. NOTE, option '-r' must be enabled too!"},
 		{ 0 }
 	};
 	struct argp argp = { options, parse_opt, args_doc, doc };
@@ -990,6 +1036,17 @@ int main (int argc, char** argv)
 		exit(-1);
 	}
 
+	if (VISUALISER)
+	{
+		LOG4CXX_INFO(logger, "Creating visualiser thread");
+		rc = pthread_create(&threads[1], NULL, visualiser, (void *)i );
+
+		if (rc)
+		{
+			LOG4CXX_ERROR(logger,"Unable to create visualiser thread, " << rc);
+			exit(-1);
+		}
+	}
 	pthread_exit(NULL);
 
 	return(EXIT_SUCCESS);
