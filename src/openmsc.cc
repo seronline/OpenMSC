@@ -65,17 +65,18 @@ namespace std {
 
 boost::shared_mutex _access;
 boost::condition_variable cond;
-boost::mutex mut;
+boost::mutex mut, visualiserMapMutex;
 using boost::asio::ip::udp;
 using boost::asio::ip::tcp;
 int seed = 1,
 		numOfUesPerBs,
 		numOfBss,
-		visualiserWindowSize;
+		visualiserWindowSize,	/** The size of the window of the visualiser in seconds*/
+		visualiserUpdateInterval = 0; /** The update interval of the visualiser in milliseconds. Default 0 (continuous plotting)*/
 unsigned int stopRate;	/** Number indicating after how many EvenIDs OpenMSC should stop sending and automatically ends*/
 DISTRIBUTION_DEFINITION_STRUCT ueDistDef;
 NOISE_DESCRIPTION_STRUCT noiseDescrStruct;
-EVENT_MAP eventMap;
+EVENT_MAP eventMap, visualiserMap;
 EVENT_TIMER_MAP eventTimerMap;
 HASHED_NOISE_EVENT_ID_MAP hashedNoiseEventIdMap;
 ReadMsc readMsc;
@@ -169,6 +170,10 @@ static int parse_opt (
 		VISUALISER=true;
 		visualiserWindowSize = atoi(arg);
 		LOG4CXX_INFO(logger,"Enable visualiser with window size = " << visualiserWindowSize);
+		break;
+	case 'w':
+		visualiserUpdateInterval = atoi(arg);
+		LOG4CXX_INFO(logger, "Update interval for visualiser set to = " << visualiserUpdateInterval);
 		break;
 	}
 
@@ -380,6 +385,13 @@ void *generateEventIds(void *t)
 												<< " to eventMap for use-case " << useCaseId << " and communication descriptor " << readMscIt-1);
 									}
 									mut.unlock();
+									if (VISUALISER)
+									{
+										visualiserMapMutex.lock();
+										visualiserMap.insert(TIME_EVENT_ID_PAIR (TIME(periodicStartTime.sec() + offset.sec(), "sec"),
+												eventIdVectorPeriodic.at(eventIdVectorPeriodicIt)));
+										visualiserMapMutex.unlock();
+									}
 								}
 								// get the same periodic EventID but with an updated IE value (in case it was not constant)
 								eventIdVectorPeriodic = eventIdGenerator.GetEventIdForComDescr(useCaseId, readMscIt-1,
@@ -399,6 +411,12 @@ void *generateEventIds(void *t)
 						}
 						eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"), eventId));
 						mut.unlock();
+						if (VISUALISER)
+						{
+							visualiserMapMutex.lock();
+							visualiserMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"), eventId));
+							visualiserMapMutex.unlock();
+						}
 						LOG4CXX_TRACE (logger, "Adding EventID " << eventId
 								<< " at relative time " << setprecision(20) << startingTimeForThisComDescr.sec()
 								<< " to eventMap for use-case " << useCaseId << " and communication descriptor " << readMscIt);
@@ -493,28 +511,40 @@ void *generateNoiseIds(void *t)
 	tvSec,
 	tvNsec,
 	currentTime;
+	float tmp;
+	bool timePositive = false;	/** for the while loop to check if time returned by Boost library is positive */
 	EVENT_ID eId;
 	timespec ts;
 	for (;;)
 	{
-		// Get next time
-		if (noiseDescrStruct.distribution.distribution == UNIFORM_REAL)
+		// Ensure the next starting time calculated is positive
+		while (!timePositive)
 		{
-			boost::uniform_real<> uni_dist_real (noiseDescrStruct.distribution.latencyMinimum.sec(), noiseDescrStruct.distribution.latencyMaximum.sec());
-			boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
-			sTime = TIME(uni_real(), "sec");
+			// Get next time
+			if (noiseDescrStruct.distribution.distribution == UNIFORM_REAL)
+			{
+				boost::uniform_real<> uni_dist_real (noiseDescrStruct.distribution.latencyMinimum.sec(), noiseDescrStruct.distribution.latencyMaximum.sec());
+				boost::variate_generator<base_generator_type&, boost::uniform_real<> > uni_real (generator, uni_dist_real);
+				tmp = uni_real();
+			}
+			else if (noiseDescrStruct.distribution.distribution == GAUSSIAN)
+			{
+				boost::normal_distribution<> gaussian_dist (noiseDescrStruct.distribution.gaussianMu, noiseDescrStruct.distribution.gaussianSigma);
+				boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian(generator, gaussian_dist);
+				tmp = gaussian();
+			}
+			else
+			{
+				LOG4CXX_ERROR(logger, "Noise distribution " << noiseDescrStruct.distribution.distribution << " has not been implemented");
+				break;
+			}
+
+			if (tmp >= 0)
+				timePositive = true;
 		}
-		else if (noiseDescrStruct.distribution.distribution == GAUSSIAN)
-		{
-			boost::normal_distribution<> gaussian_dist (noiseDescrStruct.distribution.gaussianMu, noiseDescrStruct.distribution.gaussianSigma);
-			boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian(generator, gaussian_dist);
-			sTime = TIME(gaussian(), "sec");
-		}
-		else
-		{
-			LOG4CXX_ERROR(logger, "Noise distribution " << noiseDescrStruct.distribution.distribution << " has not been implemented");
-			break;
-		}
+		timePositive = false; // reset this boolean
+		sTime = TIME(tmp, "sec");
+		LOG4CXX_DEBUG(logger, "Calculated distribution time for NoiseID = " << sTime.sec());
 		//Get Noise EventID
 		boost::uniform_int<> uni_dist_int (0, hashedNoiseEventIdMap.size() - 1);
 		boost::variate_generator<base_generator_type&, boost::uniform_int<> > uni_int (eventIdGenerator, uni_dist_int);
@@ -525,10 +555,17 @@ void *generateNoiseIds(void *t)
 		currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
 		TIME offset = TIME(1, "nanosec");
 		mut.lock();
+		//Adding NoiseID to shared eventMap - make sure to find unique time
 		while (eventMap.find(TIME(currentTime.sec() + sTime.sec(), "sec")) != eventMap.end())
 			sTime = TIME(sTime.sec() + offset.sec(),"sec");
-		eventMap.insert(pair <TIME, EVENT_ID> (TIME(currentTime.sec() + sTime.sec(), "sec"), (*hashedNoiseEventIdMapIt).second));
+		eventMap.insert(TIME_EVENT_ID_PAIR (TIME(currentTime.sec() + sTime.sec(), "sec"), (*hashedNoiseEventIdMapIt).second));
 		mut.unlock();
+		if (VISUALISER)
+		{
+			visualiserMapMutex.lock();
+			visualiserMap.insert(TIME_EVENT_ID_PAIR (TIME(currentTime.sec() + sTime.sec(), "sec"), (*hashedNoiseEventIdMapIt).second));
+			visualiserMapMutex.unlock();
+		}
 		LOG4CXX_TRACE(logger, "Uncorrelated noise EventID added to eventMap at time " << std::setprecision(20) << currentTime.sec() + sTime.sec() << "s");
 		LOG4CXX_DEBUG(logger, "Waiting " << sTime.sec() << " seconds before generating next uncorrelated noise EventID");
 		timer.expires_from_now(boost::posix_time::microseconds(sTime.microsec()));
@@ -671,7 +708,6 @@ void *visualiser(void *t)
 	Visualiser visualiser;
 	visualiser.Initialise(logger, visualiserWindowSize);
 	timespec ts;
-	EVENT_MAP eventIdTmpMap;
 	for (;;)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
@@ -679,12 +715,12 @@ void *visualiser(void *t)
 		TIME tvSec(ts.tv_sec, "sec");
 		double s = tvSec.sec() + tvNsec.sec();
 		TIME currentTime(s, "sec");
-		mut.lock(); // lock it in case another thread is writing into the memory which is currently read
-		eventIdTmpMap = eventMap;
-		mut.unlock();
-		visualiser.UpdateEventIdMap(eventIdTmpMap);
+		visualiserMapMutex.lock();
+		// Clean Visualiser map with IDs older than visualiser window size
+		visualiser.UpdateEventIdMap(&visualiserMap, currentTime);
+		visualiserMapMutex.unlock();
 		visualiser.UpdatePlot(currentTime);
-		timer.expires_from_now(boost::posix_time::seconds (1));
+		timer.expires_from_now(boost::posix_time::millisec (visualiserUpdateInterval));
 		timer.wait();
 	}
 
@@ -983,6 +1019,7 @@ int main (int argc, char** argv)
 		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
 		{ 0, 'f', 0, 0, "Write EventIDs to file 'eventStream.tsv'"},
 		{ "visualiser", 'v', "<NUMBER>", 0, "Enable real-time visualiser with a window size in seconds"},
+		{ "vInt", 'w', "<NUMBER>", 0, "Set update interval to customised value (in case the number of IDs is extraordinary large)"},
 		{ "debug", 'd', "<LEVEL>", 0, "Debug level (ERROR|INFO|DEBUG|TRACE)" },
 		{ 0, 's', "<NUMBER>", 0, "Stop OpenMSC after it sent <NUMBER> EventIDs. NOTE, option '-r' must be enabled too!"},
 		{ 0 }
@@ -998,7 +1035,7 @@ int main (int argc, char** argv)
 	if(argp_parse (&argp, argc, argv, 0, 0, 0) != 0)
 		return(EXIT_FAILURE);
 
-	dictionary.Init();	// initialising the dictionaries
+	dictionary.Init();
 	readMsc.InitLog(logger);
 	dictionary.InitLog(logger);
 	readMsc.EstablishDictConnection(&dictionary);

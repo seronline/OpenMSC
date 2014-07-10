@@ -41,11 +41,11 @@ class TIME {
 	 * @param t The time
 	 * @param unit The unit in which the time is given. Available types are nanosec, microsec, millisec or sec
 	 */
-    TIME(long double t, const char unit[]);
-    /**
-     * Returning the time in nano seconds
-     * @return the time in nano seconds
-     */
+	TIME(long double t, const char unit[]);
+	/**
+	 * Returning the time in nano seconds
+	* @return the time in nano seconds
+	*/
 	long unsigned int nanosec() const;
 	/**
 	 * Returning the time in micro seconds

@@ -24,29 +24,36 @@
 
 #include "visualiser.hh"
 #include <sstream>
+#include <math.h>
 void Visualiser::Initialise(log4cxx::LoggerPtr l, int x)
 {
 	logger = l;
-	//gnuplot << "set xrange [-5:0]\n";
 	xrangeMin = x;
 	yrangeMax = 0;
+	gnuplot << "set object 1 rectangle from screen 0,0 to screen 1,1 fillcolor rgb '#f5f5f5' behind\n";
+	gnuplot << "unset ytics\n";
+	gnuplot << "set ylabel 'ID'\n";
+	gnuplot << "set grid xtics\n";
+	gnuplot << "set key horizontal\n";
+	gnuplot << "unset border\n";
 }
-void Visualiser::UpdateEventIdMap(EVENT_MAP map)
+void Visualiser::UpdateEventIdMap(EVENT_MAP *map, TIME t)
 {
 	EVENT_MAP_IT it;
-
-	/*LOG4CXX_INFO (logger, "Adding "
-			<< map.size()
-			<< " EventIDs to visualiser map which currently contains "
-			<< eventIds.size()
-			<< " EventIDs");
-*/
-	for (it = map.begin(); it != map.end(); it++)
+	int idsErased = 0;
+	// Deleting EventIDs which are older than 5s compared to current time 't'
+	for (it = map->begin(); it != map->end(); it++)
 	{
-		if (eventIds.find((*it).first) == eventIds.end())
-			eventIds.insert((*it));
+		if (it->first.sec() < (t.sec() - xrangeMin))
+		{
+			map->erase(it);
+			idsErased++;
+		}
+		else
+			it == map->end();
 	}
-	//LOG4CXX_INFO (logger, "Visualiser map contains " << eventIds.size() << " EventIDs now")
+	eventIds = (*map);
+	LOG4CXX_DEBUG(logger, "Erased " << idsErased << " IDs from visualiser map with new size of " << eventIds.size() << "IDs");
 }
 void Visualiser::UpdatePlot(TIME t)
 {
@@ -54,13 +61,6 @@ void Visualiser::UpdatePlot(TIME t)
 	typedef pair <double,int> TIME_INT_PAIR;
 	vector <TIME_INT_PAIR> eventIdVector, noiseVector;
 	vector <TIME_INT_PAIR>::iterator eventIdVectorIterator, noiseVectorIt;
-
-	// Deleting EventIDs which are older than 5s compared to current time 't'
-	for (it = eventIds.begin(); it != eventIds.end(); it++)
-	{
-		if ((*it).first.sec() < (t.sec() - xrangeMin + 1))
-			eventIds.erase(it);
-	}
 
 	std::map<EVENT_ID, int>::iterator hashMapIt;
 	// Hashing the EventIDs down to int
@@ -94,11 +94,11 @@ void Visualiser::UpdatePlot(TIME t)
 
 			if (!(convert >> eId))
 			{
-				//cout << setprecision(20) << it->second << " is an EventID\n";
+			//	cout << setprecision(20) << it->second << " is an EventID\n";
 				eId = 0;
 			}
 			//else
-				//cout << eId << " is a NoiseID\n";
+			//	cout << eId << " is a NoiseID\n";
 
 			if (eId != 0)
 				noiseVector.push_back(TIME_INT_PAIR (it->first.sec(),hashMapIt->second));
@@ -119,14 +119,12 @@ void Visualiser::UpdatePlot(TIME t)
 		noiseVectorIt->first = -1 * (t.sec() - noiseVectorIt->first);
 		//cout << "NoiseID: " << noiseVectorIt->first << " : " << noiseVectorIt->second << endl;
 	}
-	gnuplot << "set object 1 rectangle from screen 0,0 to screen 1,1 fillcolor rgb '#f5f5f5' behind\n";
+
 	gnuplot << "set yrange [0:" << yrangeMax << "]\n";
-	gnuplot << "unset ytics\n";
-	gnuplot << "set xtics ('Now' 0) nomirror\n";
+	gnuplot << "set ytics ('0' 0, '" << yrangeMax << "' " << yrangeMax << ")\n";
+	gnuplot << "set xtics ('-" << xrangeMin << "s' -" << xrangeMin << ",'Now' 0) nomirror\n";
 	gnuplot << "set xrange [-" << xrangeMin << ":0]\n";
-	gnuplot << "set grid xtics\n";
-	gnuplot << "set key outside horizontal\n";
-	gnuplot << "unset border\n";
+
 	// Get the rate
 	int eRate, nRate;
 	if (eventIdVector.size() > noiseVector.size())
@@ -160,7 +158,7 @@ void Visualiser::UpdatePlot(TIME t)
 
 	if (eventIdVector.size() != 0 && noiseVector.size() != 0)
 	{
-		gnuplot << "set title 'EventIDs and NoiseIDs - E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
+		gnuplot << "set title 'EventIDs and NoiseIDs | E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
 		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(eventIdVector, "record") << "with points pt 7 linecolor rgb '#c74f10' title 'EventID',"
 				<< "'-' binary" << gnuplot.binFmt1d(noiseVector, "record") << "with points pt 15 linecolor rgb '#002b5c' title 'NoiseID'\n";
 		gnuplot.sendBinary1d(eventIdVector);
@@ -168,17 +166,16 @@ void Visualiser::UpdatePlot(TIME t)
 	}
 	else if (eventIdVector.size() == 0 && noiseVector.size() != 0)
 	{
-		gnuplot << "set title 'NoiseIDs only - E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
+		gnuplot << "set title 'NoiseIDs only | E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
 		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(noiseVector, "record") << "with points pt 15 linecolor rgb '#002b5c' title 'NoiseID'\n";
 		gnuplot.sendBinary1d(noiseVector);
 	}
 	else if (eventIdVector.size() != 0 && noiseVector.size() == 0)
 	{
-		gnuplot << "set title 'EventIDs only - E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
+		gnuplot << "set title 'EventIDs only | E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
 		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(eventIdVector, "record") << "with points pt 7 linecolor rgb '#c74f10' title 'EventID'\n";
 		gnuplot.sendBinary1d(eventIdVector);
 	}
 
 	gnuplot.flush();
-
 }

@@ -41,7 +41,7 @@ public:
 	 *
 	 * @param map The map of EventIDs which will be sent in the future
 	 */
-	void UpdateEventIdMap(EVENT_MAP map);
+	void UpdateEventIdMap(EVENT_MAP *map, TIME t);
 
 	/**
 	 * Update the Gnuplot plot
