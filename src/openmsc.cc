@@ -99,12 +99,12 @@ log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("logger");
 
 // ARGP
 const char *argp_program_bug_address = "Sebastian Robitzsch <srobitzsch@gmail.com>";
-const char *argp_program_version = "OpenMSC Version 0.2";
+const char *argp_program_version = "OpenMSC Version 0.3";
 
 /* Program documentation. */
 static char doc[] = "OpenMSC -- MSCgen-Based Control Plane Network Trace Emulator";
 /* A description of the arguments we accept. */
-static char args_doc[] = "<IP> <PORT> <DEBUG_LEVEL>";
+static char args_doc[] = "<IP> <PORT>";
 struct arguments
 {
  char *argz;
@@ -661,28 +661,28 @@ void *sendStream(void *t)
 				LOG4CXX_ERROR(logger, "Neither UDP nor TCP was selected");
 
 			eventMapIt = eventMap.begin();
-
-			if (PRINT_EVENT_ID_RATE)
+			// count Numbers of sent EventIDs
+			if (printingRateTime.sec() < currentTime.sec())
 			{
-				if (printingRateTime.sec() < currentTime.sec())
-				{
-					printingRateTime = TIME(currentTime.sec() + 1.0, "sec");
-					countEventIdsTotal += countEventIds;
-					LOG4CXX_INFO(logger, "EventID Rate: " << countEventIds << "/s\tTotal = " << countEventIdsTotal);
-					countEventIds = 0;
-				}
-				else
-					countEventIds++;
+				printingRateTime = TIME(currentTime.sec() + 1.0, "sec");
+				countEventIdsTotal += countEventIds;
+				if (PRINT_EVENT_ID_RATE)
+					LOG4CXX_INFO(logger, "EventID Rate: " << countEventIds
+							<< "/s\tTotal = " << countEventIdsTotal
+							<< "\tAverage Rate: " << floor(countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec())) << "IDs/s");
+				countEventIds = 0;
+			}
+			else
+				countEventIds++;
+			// Check if stream has already reached it requested size
+			if (AUTOMATICALLY_STOP_SENDING && stopRate < countEventIdsTotal)
+			{
+				if (streamToFileFlag)
+					file.close();
 
-				if (AUTOMATICALLY_STOP_SENDING && stopRate < countEventIdsTotal)
-				{
-					if (streamToFileFlag)
-						file.close();
-
-					LOG4CXX_INFO (logger, stopRate << " EventIDs have been sent. OpenMSC will be terminated");
-					LOG4CXX_INFO (logger, "Average EventID rate: " << countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec()) << "IDs/s");
-					exit(0);
-				}
+				LOG4CXX_INFO (logger, stopRate << " EventIDs have been sent. OpenMSC will be terminated");
+				LOG4CXX_INFO (logger, "Average EventID rate: " << countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec()) << "IDs/s");
+				exit(0);
 			}
 		}
 	}
@@ -1016,12 +1016,12 @@ int main (int argc, char** argv)
 		{ "TCP", 't', 0, 0, "Using IPv4 over TCP to communicate with destination module"},
 		{ "UDP", 'u', 0, 0, "Using IPv4 over UDP to communicate with destination module"},
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},
-		{ "ip", 'i', "<IP>", 0, "IP address of the receiving module"},
+		{ "ip", 'i', "<IPv4 Address>", 0, "IP address of the receiving module"},
 		{ 0, 'f', 0, 0, "Write EventIDs to file 'eventStream.tsv'"},
 		{ "visualiser", 'v', "<NUMBER>", 0, "Enable real-time visualiser with a window size in seconds"},
-		{ "vInt", 'w', "<NUMBER>", 0, "Set update interval to customised value (in case the number of IDs is extraordinary large)"},
+		{ "vInt", 'w', "<NUMBER>", 0, "Set update interval to customised value"},
 		{ "debug", 'd', "<LEVEL>", 0, "Debug level (ERROR|INFO|DEBUG|TRACE)" },
-		{ 0, 's', "<NUMBER>", 0, "Stop OpenMSC after it sent <NUMBER> EventIDs. NOTE, option '-r' must be enabled too!"},
+		{ 0, 's', "<NUMBER>", 0, "Stop OpenMSC after it sent <NUMBER> EventIDs"},
 		{ 0 }
 	};
 	struct argp argp = { options, parse_opt, args_doc, doc };
