@@ -41,11 +41,13 @@ function hashId(id)
 	return hashedIds[0]
 }
 BEGIN {
-	PID = 1	# The Pattern ID which should be coloured from patterns.csv
-	NID = 1	# The Noise ID which should be coloured
+	PID = 1 # The Pattern ID which should be coloured from patterns.csv
+	NID = 23	# The Noise ID which should be coloured
 	rgbColourPattern1 = "#c74f10"	# OpenMSC colour
 	rgbColourPattern2 = "#C7AA10"	# adjacent colour to OpenMSC colour
 	rgbColourNoise = "#80ADFF"
+	startTime = 0
+	endTime = 450
 	# Don't touch!
 	numOfIds = 0
 	ORDINARY_STREAM_FILE="eventStreamOrdinary"
@@ -65,7 +67,8 @@ BEGIN {
 	{
 		if ((FNR-1) == PID)
 		{
-			print "Reading "$0
+			print "Reading PID " PID
+			print $0
 			split($2, tmp, ",")
 			i = 1
 			while (length(tmp[i]) > 0)
@@ -74,11 +77,10 @@ BEGIN {
 				patternModelToBeColoured[0] = i
 				i++
 			}
-			print "Length: " patternModelToBeColoured[0]
 		}
 		
 	}
-	else if (FILENAME == "eventStream.tsv")# && $1 >= 10.0 && $1 <= 200.0)
+	else if (FILENAME == "eventStream.tsv" && $1 >= startTime && $1 <= endTime) # Uncomment 2nd and 3rd statement for zoomed plot
 	{
 		PID_FOUND=0
 		# Check if the wrong Pattern Model start was found
@@ -144,15 +146,24 @@ END {
 	print "set ylabel 'Identifiers'" >> GNUPLOT
 	print "unset ytics" >> GNUPLOT
 	print "set grid" >> GNUPLOT
+	print "set terminal pngcairo" >> GNUPLOT
+	print "set output 'streamOverTime_PID-"PID"_NID-"NID".png'" >> GNUPLOT
+	print "set key top left" >> GNUPLOT
+	print "plot '"ORDINARY_STREAM_FILE"' using 1:2 with points pt 7 ps 0.1 lc rgb '#555555' noti, \\" >> GNUPLOT
+	print "'" COLOURED_PATTERN_STREAM_FILE "' using 1:2 with line lw 2 lc rgb '"rgbColourPattern1"' noti, \\" >> GNUPLOT
+	print "'" COLOURED_PATTERN_STREAM_START_FILE "' using 1:2 with points pt 7 ps 2 lc rgb '"rgbColourPattern1"' noti, \\" >> GNUPLOT
+	print "'" COLOURED_PATTERN_STREAM_FILE "' using 1:2 with points pt 7 ps 1 lc rgb '"rgbColourPattern2"' title 'Pattern ID " PID "', \\" >> GNUPLOT
+	print "'" COLOURED_NOISE_STREAM_FILE "' using 1:2 with points pt 13 ps 1 lc rgb '"rgbColourNoise"' title 'Noise ID "NID"'" >> GNUPLOT
+
 	print "set terminal eps enhanced" >> GNUPLOT
 	print "set output 'streamOverTime_PID-"PID"_NID-"NID".eps'" >> GNUPLOT
-	print "set key top left" >> GNUPLOT
 	print "plot '"ORDINARY_STREAM_FILE"' using 1:2 with points pt 7 ps 0.1 lc rgb '#555555' noti, \\" >> GNUPLOT
 	print "'" COLOURED_PATTERN_STREAM_FILE "' using 1:2 with line lw 2 lc rgb '"rgbColourPattern1"' noti, \\" >> GNUPLOT
 	print "'" COLOURED_PATTERN_STREAM_START_FILE "' using 1:2 with points pt 7 ps 1 lc rgb '"rgbColourPattern1"' noti, \\" >> GNUPLOT
 	print "'" COLOURED_PATTERN_STREAM_FILE "' using 1:2 with points pt 7 ps 0.3 lc rgb '"rgbColourPattern2"' title 'Pattern ID " PID "', \\" >> GNUPLOT
 	print "'" COLOURED_NOISE_STREAM_FILE "' using 1:2 with points pt 13 ps 0.5 lc rgb '"rgbColourNoise"' title 'Noise ID "NID"'" >> GNUPLOT
+
 	system("gnuplot " GNUPLOT)
 	system("rm " GNUPLOT)
-	print "Figure 'streamOverTime_PID-"PID"_NID-"NID".eps' created"
+	print "Figure 'streamOverTime_PID-"PID"_NID-"NID".(eps|png)' created"
 }
