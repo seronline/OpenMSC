@@ -89,7 +89,9 @@ UDP = true,
 streamToFileFlag = false,
 PRINT_EVENT_ID_RATE = false,
 AUTOMATICALLY_STOP_SENDING = false,
-VISUALISER=false;
+VISUALISER=false,
+ENABLE_NOISE,
+CD_OVERLAP;
 const int MAX_INT = std::numeric_limits<int>::max();
 // log4cxx
 log4cxx::FileAppender * fileAppender = new log4cxx::FileAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()), "openmsc.log", false);
@@ -249,9 +251,19 @@ void *generateEventIds(void *t)
 				}
 				else if (ueDistDef.distribution == GAUSSIAN)
 				{
+					bool timePositive = false;	/** for the while loop to check if time returned by Boost library is positive */
+					float timeGaussian;
 					boost::normal_distribution<> gau_dist (ueDistDef.gaussianMu, ueDistDef.gaussianSigma);
 					boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
-					sTime = TIME(gaussian(), "sec");
+					while (timePositive)
+					{
+						timeGaussian = gaussian();
+						if (timeGaussian > 0)
+							timePositive = true;
+						else
+							LOG4CXX_INFO(logger, "Gaussian returned negative value ... request new value");
+					}
+					sTime = TIME(timeGaussian, "sec");
 					LOG4CXX_TRACE(logger, "Starting time distribution is GAUSSIAN with Mu = " << ueDistDef.gaussianMu
 											<< " and Sigma = " << ueDistDef.gaussianSigma
 											<< "\tValue = " << sTime.sec());
@@ -327,6 +339,8 @@ void *generateEventIds(void *t)
 			tvNsec = TIME(ts.tv_nsec, "nanosec");
 			tvSec = TIME(ts.tv_sec, "sec");
 			TIME startingTimeForThisComDescr = TIME(tvSec.sec() + tvNsec.sec(), "sec");
+			TIME communicationDescriptorLength = TIME(0, "sec"); /** Sum up the total length for this communication descriptor.
+													Prevent new UE starting time to be before the end of the communication descriptor*/
 			EVENT_ID_VECTOR eventIdVectorPeriodic;
 			useCaseId = eventIdGenerator.DetermineUseCaseId(&generatorUseCase);
 			LOG4CXX_DEBUG(logger, "Use-Case ID for UE " << (*eMapIt).second.first << " - BS " << (*eMapIt).second.second << " = " << useCaseId);
@@ -411,6 +425,8 @@ void *generateEventIds(void *t)
 						}
 						eventMap.insert(TIME_EVENT_ID_PAIR (TIME(startingTimeForThisComDescr.sec() + offset.sec(), "sec"), eventId));
 						mut.unlock();
+						if (!CD_OVERLAP)
+							communicationDescriptorLength = TIME(communicationDescriptorLength.sec() + latency.sec() + offset.sec(), "sec");
 						if (VISUALISER)
 						{
 							visualiserMapMutex.lock();
@@ -452,8 +468,18 @@ void *generateEventIds(void *t)
 			}
 			else if (ueDistDef.distribution == GAUSSIAN)
 			{
+				bool timePositive = false;
+				float timeGaussian;
 				boost::normal_distribution<> gau_dist (ueDistDef.gaussianMu,ueDistDef.gaussianSigma);
 				boost::variate_generator<base_generator_type&, boost::normal_distribution<> > gaussian (generator, gau_dist);
+				while (timePositive)
+				{
+					timeGaussian = gaussian();
+					if (timeGaussian > 0)
+						timePositive = true;
+					else
+						LOG4CXX_INFO(logger, "Gaussian returned negative value ... request new value");
+				}
 				sTime = TIME(gaussian(), "sec");
 			}
 			else if (ueDistDef.distribution == GAMMA)
@@ -473,7 +499,9 @@ void *generateEventIds(void *t)
 				LOG4CXX_ERROR(logger, "This distribution has not been implemented to calculate UE arrival times");
 				pthread_exit(NULL);
 			}
-
+			// Add CD length to ensure that the new CD is sent AFTER this CD has been finished
+			if (!CD_OVERLAP)
+				sTime = TIME(sTime.sec() + communicationDescriptorLength.sec(), "sec");
 			clock_gettime(CLOCK_REALTIME, &ts);
 			tvNsec = TIME(ts.tv_nsec, "nanosec");
 			tvSec = TIME(ts.tv_sec, "sec");
@@ -486,8 +514,7 @@ void *generateEventIds(void *t)
 					TIME tmpTime;
 					tmpTime = TIME(currentTime.sec() + sTime.sec(), "sec");
 					LOG4CXX_DEBUG(logger, "Next starting time for UE " << ue
-							<< " -> BS " << bs << " in " << std::setprecision(20) << tmpTime.sec() - currentTime.sec() << "s"
-							<< " total time: " << currentTime.sec());
+							<< " -> BS " << bs << " in " << std::setprecision(20) << tmpTime.sec() - currentTime.sec() << "s");
 					eventTimerMap.insert(pair <TIME,BS_UE_PAIR> (tmpTime, BS_UE_PAIR (bs,ue)));
 					newTimeFound = true;
 				}
@@ -496,6 +523,7 @@ void *generateEventIds(void *t)
 					sTime = TIME(sTime.sec() + sTmp.sec(), "sec");
 				}
 			}
+			communicationDescriptorLength = TIME(0.0, "sec");
 		}
 	}
 	LOG4CXX_ERROR (logger, "generateEventIds() thread ended");
@@ -667,9 +695,9 @@ void *sendStream(void *t)
 				printingRateTime = TIME(currentTime.sec() + 1.0, "sec");
 				countEventIdsTotal += countEventIds;
 				if (PRINT_EVENT_ID_RATE)
-					LOG4CXX_INFO(logger, "EventID Rate: " << countEventIds
-							<< "/s\tTotal = " << countEventIdsTotal
-							<< "\tAverage Rate: " << floor(countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec())) << "IDs/s");
+					LOG4CXX_INFO(logger, "EventID Rate per second: " << countEventIds
+							<< "\tTotal = " << countEventIdsTotal
+							<< "\tAverage ID rate per second: " << floor(countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec())));
 				countEventIds = 0;
 			}
 			else
@@ -681,7 +709,7 @@ void *sendStream(void *t)
 					file.close();
 
 				LOG4CXX_INFO (logger, stopRate << " EventIDs have been sent. OpenMSC will be terminated");
-				LOG4CXX_INFO (logger, "Average EventID rate: " << countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec()) << "IDs/s");
+				LOG4CXX_INFO (logger, "Average EventID rate per second: " << countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec()));
 				exit(0);
 			}
 		}
@@ -777,6 +805,21 @@ bool readConfiguration(char *configFileName_,
 		{
 			LOG4CXX_ERROR (logger, "Parameters numOfUesPerBs, numOfBss and/or ueActivity-Dist could not be read");
 			return false;
+		}
+
+		if (!(openmscConfig.lookupValue("cdOverlap", CD_OVERLAP)))
+		{
+			LOG4CXX_INFO(logger, "Communication Descriptor overlap (cdOverlap) has not been specified in openmsc.cfg. Set to false");
+			CD_OVERLAP = false;
+		}
+		else
+		{
+			if (CD_OVERLAP)
+			{
+				LOG4CXX_DEBUG(logger, "Communication Descriptor overlap set to true");
+			}
+			else
+				LOG4CXX_DEBUG(logger, "Communication Descriptor overlap set to false");
 		}
 
 		if (strcmp(dist,"constant") == 0)
@@ -895,10 +938,11 @@ bool readConfiguration(char *configFileName_,
 		// Read noise config (if it exists)
 		try
 		{
+			ENABLE_NOISE = true;
 			const Setting &noiseUncorrelated = root["openmscConfig"]["noise"]["uncorrelated"];
 			int count = noiseUncorrelated.getLength();
 
-			LOG4CXX_DEBUG(logger, "Uncorrelated noise definition found");
+			LOG4CXX_DEBUG(logger, "Uncorrelated noise definition found (noise elements provided in openmsc.cfg = " << count);
 
 			for(int i = 0; i < count; ++i)
 			{
@@ -973,6 +1017,7 @@ bool readConfiguration(char *configFileName_,
 		catch(const SettingNotFoundException &nfex)
 		{
 			LOG4CXX_INFO (logger, "Noise declaration in openmsc.cfg either not given or could not be read");
+			ENABLE_NOISE = false;
 		}
 	}
 	catch(const SettingNotFoundException &nfex)
@@ -1067,14 +1112,16 @@ int main (int argc, char** argv)
 		exit(-1);
 	}
 
-	LOG4CXX_INFO(logger, "Creating generateNoiseIds thread");
-	rc = pthread_create(&threads[1], NULL, generateNoiseIds, (void *)i );
+	if (ENABLE_NOISE)
+	{
+		LOG4CXX_INFO(logger, "Creating generateNoiseIds thread");
+		rc = pthread_create(&threads[1], NULL, generateNoiseIds, (void *)i );
 
-	if (rc){
-		LOG4CXX_ERROR(logger,"Unable to create generateNoiseIds thread, " << rc);
-		exit(-1);
+		if (rc){
+			LOG4CXX_ERROR(logger,"Unable to create generateNoiseIds thread, " << rc);
+			exit(-1);
+		}
 	}
-
 	if (VISUALISER)
 	{
 		LOG4CXX_INFO(logger, "Creating visualiser thread");

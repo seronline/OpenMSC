@@ -76,7 +76,7 @@ void Visualiser::UpdatePlot(TIME t)
 			}
 			else
 			{
-				LOG4CXX_DEBUG (logger, "New hashed number for EventID "
+				LOG4CXX_DEBUG (logger, "New hashed number for Event ID "
 						<< it->second << " = " << hashMap.size()+1 );
 				hashMap.insert(std::pair<EVENT_ID, int>(it->second, hashMap.size()+1));
 				hashMapIt = hashMap.find(it->second);
@@ -158,22 +158,22 @@ void Visualiser::UpdatePlot(TIME t)
 
 	if (eventIdVector.size() != 0 && noiseVector.size() != 0)
 	{
-		gnuplot << "set title 'EventIDs and NoiseIDs | E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
-		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(eventIdVector, "record") << "with points pt 7 linecolor rgb '#c74f10' title 'EventID',"
-				<< "'-' binary" << gnuplot.binFmt1d(noiseVector, "record") << "with points pt 15 linecolor rgb '#002b5c' title 'NoiseID'\n";
+		gnuplot << "set title 'Pattern IDs and Noise IDs | P:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
+		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(eventIdVector, "record") << "with points pt 7 linecolor rgb '#c74f10' title 'Patttern ID',"
+				<< "'-' binary" << gnuplot.binFmt1d(noiseVector, "record") << "with points pt 15 linecolor rgb '#002b5c' title 'Noise ID'\n";
 		gnuplot.sendBinary1d(eventIdVector);
 		gnuplot.sendBinary1d(noiseVector);
 	}
 	else if (eventIdVector.size() == 0 && noiseVector.size() != 0)
 	{
-		gnuplot << "set title 'NoiseIDs only | E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
-		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(noiseVector, "record") << "with points pt 15 linecolor rgb '#002b5c' title 'NoiseID'\n";
+		gnuplot << "set title 'Noise IDs only' tc rgb '#c74f10'\n";
+		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(noiseVector, "record") << "with points pt 15 linecolor rgb '#002b5c' title 'Noise ID'\n";
 		gnuplot.sendBinary1d(noiseVector);
 	}
 	else if (eventIdVector.size() != 0 && noiseVector.size() == 0)
 	{
-		gnuplot << "set title 'EventIDs only | E:N Rate = " << eRate << ":" << nRate << "' tc rgb '#c74f10'\n";
-		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(eventIdVector, "record") << "with points pt 7 linecolor rgb '#c74f10' title 'EventID'\n";
+		gnuplot << "set title 'Pattern IDs only' tc rgb '#c74f10'\n";
+		gnuplot << "plot '-' binary" << gnuplot.binFmt1d(eventIdVector, "record") << "with points pt 7 linecolor rgb '#c74f10' title 'Pattern ID'\n";
 		gnuplot.sendBinary1d(eventIdVector);
 	}
 
