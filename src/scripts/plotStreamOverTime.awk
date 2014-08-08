@@ -21,7 +21,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-# Run the script using the following command: ./plotStreamOverTime.awk patterns.csv eventStream.tsv 
+# Run the script using the following command: 
+# ./plotStreamOverTime.awk s=<INT> e=<INT> PID=<INT> NID=<INT> patterns.csv eventStream.tsv 
 # Note, the patterns.csv file MUST be provided first
 # This script does NOT work if csOverlap has been set to false in openmsc.cfg
 
@@ -41,14 +42,9 @@ function hashId(id)
 	return hashedIds[0]
 }
 BEGIN {
-	PID = 1 # The Pattern ID which should be coloured from patterns.csv
-	NID = 23	# The Noise ID which should be coloured
 	rgbColourPattern1 = "#c74f10"	# OpenMSC colour
 	rgbColourPattern2 = "#C7AA10"	# adjacent colour to OpenMSC colour
 	rgbColourNoise = "#80ADFF"
-	startTime = 0
-	endTime = 450
-	# Don't touch!
 	numOfIds = 0
 	ORDINARY_STREAM_FILE="eventStreamOrdinary"
 	COLOURED_PATTERN_STREAM_FILE="eventStreamPatternColoured"
@@ -78,9 +74,8 @@ BEGIN {
 				i++
 			}
 		}
-		
 	}
-	else if (FILENAME == "eventStream.tsv" && $1 >= startTime && $1 <= endTime) # Uncomment 2nd and 3rd statement for zoomed plot
+	else if (FILENAME == "eventStream.tsv" && $1 >= s && $1 <= e)
 	{
 		PID_FOUND=0
 		# Check if the wrong Pattern Model start was found
@@ -144,7 +139,7 @@ END {
 	print "set xlabel 'Time [s]'" > GNUPLOT
 	print "set title 'Total Number of IDs in this Window = " numOfIds "'" >> GNUPLOT
 	print "set ylabel 'Identifiers'" >> GNUPLOT
-	print "unset ytics" >> GNUPLOT
+	#print "unset ytics" >> GNUPLOT
 	print "set grid" >> GNUPLOT
 	print "set terminal pngcairo" >> GNUPLOT
 	print "set output 'streamOverTime_PID-"PID"_NID-"NID".png'" >> GNUPLOT

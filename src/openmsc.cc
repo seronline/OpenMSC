@@ -74,6 +74,7 @@ int seed = 1,
 		visualiserWindowSize,	/** The size of the window of the visualiser in seconds*/
 		visualiserUpdateInterval = 0; /** The update interval of the visualiser in milliseconds. Default 0 (continuous plotting)*/
 unsigned int stopRate;	/** Number indicating after how many EvenIDs OpenMSC should stop sending and automatically ends*/
+float eventLogRateInterval; /** Interval in seconds used to print EventID rate to stdout using debug level INFO */
 DISTRIBUTION_DEFINITION_STRUCT ueDistDef;
 NOISE_DESCRIPTION_STRUCT noiseDescrStruct;
 EVENT_MAP eventMap, visualiserMap;
@@ -162,6 +163,8 @@ static int parse_opt (
 		break;
 	case 'r':
 		PRINT_EVENT_ID_RATE=true;
+		eventLogRateInterval = atof(arg);
+		LOG4CXX_INFO(logger, "EventID logger enabled with interval " << eventLogRateInterval << "s");
 		break;
 	case 's':
 		AUTOMATICALLY_STOP_SENDING = true;
@@ -569,6 +572,8 @@ void *generateNoiseIds(void *t)
 
 			if (tmp >= 0)
 				timePositive = true;
+			else
+				LOG4CXX_INFO(logger, "Negative noise distribution time has been returned ... recalculating");
 		}
 		timePositive = false; // reset this boolean
 		sTime = TIME(tmp, "sec");
@@ -581,7 +586,9 @@ void *generateNoiseIds(void *t)
 		tvNsec = TIME(ts.tv_nsec, "nanosec");
 		tvSec = TIME(ts.tv_sec, "sec");
 		currentTime = TIME(tvSec.sec() + tvNsec.sec(), "sec");
-		TIME offset = TIME(1, "nanosec");
+		TIME offset = TIME(1, "millisec");
+		//if (!mut.try_lock())
+		//	LOG4CXX_INFO (logger, "Could not get lock to add new NoiseID");
 		mut.lock();
 		//Adding NoiseID to shared eventMap - make sure to find unique time
 		while (eventMap.find(TIME(currentTime.sec() + sTime.sec(), "sec")) != eventMap.end())
@@ -649,7 +656,7 @@ void *sendStream(void *t)
 	TIME tvSec(ts.tv_sec, "sec");
 	double s = tvSec.sec() + tvNsec.sec();
 	TIME emulationStartTime(s, "sec");
-	printingRateTime = TIME(s+1.0, "sec");
+	printingRateTime = TIME(s + eventLogRateInterval, "sec");
 	for(;;)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
@@ -689,29 +696,36 @@ void *sendStream(void *t)
 				LOG4CXX_ERROR(logger, "Neither UDP nor TCP was selected");
 
 			eventMapIt = eventMap.begin();
-			// count Numbers of sent EventIDs
-			if (printingRateTime.sec() < currentTime.sec())
+			countEventIdsTotal++;
+			// Printing EventID rate to stdout
+			if (PRINT_EVENT_ID_RATE && printingRateTime.sec() < currentTime.sec())
 			{
-				printingRateTime = TIME(currentTime.sec() + 1.0, "sec");
-				countEventIdsTotal += countEventIds;
-				if (PRINT_EVENT_ID_RATE)
-					LOG4CXX_INFO(logger, "EventID Rate per second: " << countEventIds
-							<< "\tTotal = " << countEventIdsTotal
-							<< "\tAverage ID rate per second: " << floor(countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec())));
+				printingRateTime = TIME(currentTime.sec() + eventLogRateInterval, "sec");
+				LOG4CXX_INFO(logger, "EventIDs sent: " << countEventIds
+							<< " \tTotal EventID #: " << countEventIdsTotal
+							<< "\tAverage EventID rate: " << floor(countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec())));
 				countEventIds = 0;
 			}
-			else
+			else if (PRINT_EVENT_ID_RATE)
 				countEventIds++;
 			// Check if stream has already reached it requested size
-			if (AUTOMATICALLY_STOP_SENDING && stopRate < countEventIdsTotal)
+			if (AUTOMATICALLY_STOP_SENDING && stopRate <= countEventIdsTotal)
 			{
 				if (streamToFileFlag)
 					file.close();
 
 				LOG4CXX_INFO (logger, stopRate << " EventIDs have been sent. OpenMSC will be terminated");
-				LOG4CXX_INFO (logger, "Average EventID rate per second: " << countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec()));
 				exit(0);
 			}
+		}
+
+		if (PRINT_EVENT_ID_RATE && printingRateTime.sec() < currentTime.sec())
+		{
+			printingRateTime = TIME(currentTime.sec() + eventLogRateInterval, "sec");
+			LOG4CXX_INFO(logger, "EventIDs sent: " << countEventIds
+					<< " \tTotal EventID #: " << countEventIdsTotal
+					<< "\tAverage EventID rate: " << floor(countEventIdsTotal / (currentTime.sec() - emulationStartTime.sec())));
+			countEventIds = 0;
 		}
 	}
 	if (streamToFileFlag)
@@ -1057,7 +1071,7 @@ int main (int argc, char** argv)
 
 	struct argp_option options[] =
 	{
-		{ 0, 'r', 0, 0, "Print 'EventIDs per second' rate and total # of EventIDs to stdout using INFO logging level"},
+		{ 0, 'r', "<INTERVAL>", 0, "Print 'EventIDs per second' rate and total # of EventIDs to stdout using INFO logging level"},
 		{ "TCP", 't', 0, 0, "Using IPv4 over TCP to communicate with destination module"},
 		{ "UDP", 'u', 0, 0, "Using IPv4 over UDP to communicate with destination module"},
 		{ "port", 'p', "<PORT>", 0, "Port number of the receiving module"},
