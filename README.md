@@ -1,5 +1,5 @@
-# openmsc
-Open Source Real-time MSCgen-based Control Plane Trace Emulator for Communication Networks
+# OpenMSC
+Open Source Real-time MSCgen-based Control Plane Trace Emulator for Communication Networks. This emulator has been used in the E-Stream project: http://estream-project.weebly.com, a collaboration between Ericsson and Dublin City University.
 
 # Folder structure
 OpenMSC has two main folders, i.e., 'doc' and 'src'. In doc there's a again two folders 'doxygen' and 'example'. In doxygen, a Doxygen configuration file is present which can be used to generate a HTML-based Doxygen documentation. The examples directory comprises two exemplary configuration files for OpenMSC and an EPS figure visualising what message sequence will be emulated. The 'src' directory comprises the actual code including an INSTALL helper file
