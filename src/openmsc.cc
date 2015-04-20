@@ -101,17 +101,16 @@ log4cxx::helpers::Pool p;
 log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("logger");
 
 // ARGP
-const char *argp_program_bug_address = "Sebastian Robitzsch <srobitzsch@gmail.com>";
-const char *argp_program_version = "OpenMSC Version 0.3";
+const char *argp_program_bug_address = "Sebastian Robitzsch <sebastian@seronline.de>";
+const char *argp_program_version = "OpenMSC Version 1.00";
 
 /* Program documentation. */
 static char doc[] = "OpenMSC -- MSCgen-Based Control Plane Network Trace Emulator";
-/* A description of the arguments we accept. */
 static char args_doc[] = "<IP> <PORT>";
 struct arguments
 {
- char *argz;
- size_t argz_len;
+	char *argz;
+	size_t argz_len;
 };
 static int parse_opt (
 		int key,
@@ -184,7 +183,6 @@ static int parse_opt (
 
 	return 0;
 }
-///
 
 /**
  * Generating EventIDs
