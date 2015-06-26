@@ -1,7 +1,7 @@
 /**
  * @file
  * @author Sebastian Robitzsch <srobitzsch@gmail.com>
- * @version 0.1
+ * @version 1.0.0
  *
  * @section LICENSE
  *
@@ -102,7 +102,7 @@ log4cxx::LoggerPtr logger = log4cxx::Logger::getLogger("logger");
 
 // ARGP
 const char *argp_program_bug_address = "Sebastian Robitzsch <sebastian@seronline.de>";
-const char *argp_program_version = "OpenMSC Version 1.00";
+const char *argp_program_version = "OpenMSC Version 1.0.0";
 
 /* Program documentation. */
 static char doc[] = "OpenMSC -- MSCgen-Based Control Plane Network Trace Emulator";
